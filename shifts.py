@@ -20,7 +20,7 @@ def validate_shifts(raw,text):
     for s in raw.get('shifts',[]):
         item={k:text(s.get(k,''),2000 if k=='notes' else (100 if k in ('group','status') else 200),k in ('id','warehouse_id','warehouse_name','status')) for k in ('id','warehouse_id','warehouse_name','group','status','responsible_id','notes','created_by','created_at','updated_by','updated_at')}
         item.update(start=instant(s.get('start')),end=instant(s.get('end')),actual_end=instant(s['actual_end']) if s.get('actual_end') else '')
-        if item['id'] in shift_ids or item['warehouse_id'] not in ids or item['status'] not in STATUSES or item['end']<=item['start'] or (datetime.fromisoformat(item['end'].replace('Z','+00:00'))-datetime.fromisoformat(item['start'].replace('Z','+00:00'))).total_seconds()>7*86400:raise ValueError('Перевірте склад, статус та тривалість зміни.')
+        if item['id'] in shift_ids or item['warehouse_id'] not in ids or item['status'] not in STATUSES or item['end']<=item['start']:raise ValueError('Перевірте склад, статус та тривалість зміни.')
         shift_ids.add(item['id'])
         if (item['status']=='Завершили зміну')!=bool(item['actual_end']) or (item['actual_end'] and item['actual_end']<=item['start']):raise ValueError('Перевірте фактичне завершення зміни.')
         if not isinstance(s.get('members'),list) or not 0<len(s['members'])<=3000:raise ValueError('Виберіть працівників.')

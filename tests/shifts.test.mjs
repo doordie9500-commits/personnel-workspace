@@ -27,3 +27,5 @@ test('Old state loads additively; stale clients preserve shift tables',()=>{
 test('Kyiv wall times support winter/summer and reject DST gaps/ambiguities',()=>{
  assert.equal(utc('2026-10-21T08:00'),'2026-10-21T05:00:00.000Z');assert.equal(utc('2026-12-21T08:00'),'2026-12-21T06:00:00.000Z');assert.throws(()=>utc('2026-03-29T03:30'));assert.throws(()=>utc('2026-10-25T03:30'));
 });
+
+test('Long work periods have no arbitrary seven-day duration cap',()=>{const data=state();data.shifts[0].end='2027-03-01T17:00:00.000Z';assert.equal(validate(data).shifts[0].end,'2027-03-01T17:00:00.000Z');data.shifts[0].end=data.shifts[0].start;assert.throws(()=>validate(data));});

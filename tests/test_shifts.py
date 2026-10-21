@@ -20,7 +20,7 @@ class ShiftTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             server=make_server(Database(Path(folder)/'test.sqlite3'),port=0);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
             try:
-                for module in ('shifts-ui.js','shifts-model.js','schedule-move.js','chat-ui.js'):
+                for module in ('shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js','chat-ui.js'):
                     with urllib.request.urlopen('http://127.0.0.1:'+str(server.server_port)+'/'+module) as response:self.assertEqual(response.status,200)
             finally:server.shutdown();server.server_close();thread.join()
     @unittest.skipUnless(sys.platform=='win32','Windows DPAPI')
@@ -30,6 +30,8 @@ class ShiftTests(unittest.TestCase):
             db=Database(Path(folder)/'test.sqlite3');db.commit(dict(id='actor',login='editor',role='editor'),state(),0)
             result=local_backups.create(db);self.assertEqual(local_backups.rows(db)[0]['id'],result['id']);packet=local_backups.read(db,result['id']);self.assertEqual(packet['engine'],'python-sqlite');self.assertEqual(len(__import__('json').loads(packet['tables']['workspace'][0]['data'])['shifts']),1)
             with self.assertRaises(ValueError):local_backups.read(db,'../test')
+    def test_long_shift_has_no_seven_day_limit(self):
+        s=state();s['shifts'][0]['end']='2027-03-01T17:00:00.000Z';self.assertEqual(validate_state(s)['shifts'][0]['end'],'2027-03-01T17:00:00.000Z')
     def test_overlap_and_adjacent(self):
         s=state();two=copy.deepcopy(s['shifts'][0]);two['id']='two';s['shifts'].append(two)
         with self.assertRaises(ValueError):validate_shifts(s,text)

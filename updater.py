@@ -83,7 +83,7 @@ def launch_installer(staged,target,checksum,restart_args):
     if hashlib.sha256(staged.read_bytes()).hexdigest()!=checksum:raise ValueError('SHA-256 змінився перед встановленням.')
     # All interpolated paths/arguments are literal-quoted; no shell-built executable commands.
     script=staged.parent/'install-update.ps1'
-    args=','.join(powershell_literal(v) for v in restart_args)
+    args=powershell_literal(subprocess.list2cmdline(restart_args))
     source=f'''$ErrorActionPreference = 'Stop'
 $oldProcessId = {os.getpid()}
 $targetFile = {powershell_literal(target)}
@@ -92,6 +92,7 @@ $checksum = {powershell_literal(checksum)}
 $deadline = (Get-Date).AddHours(24)
 while ((Get-Process -Id $oldProcessId -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {{ Start-Sleep -Seconds 2 }}
 if (Get-Process -Id $oldProcessId -ErrorAction SilentlyContinue) {{ exit 1 }}
+Start-Sleep -Seconds 2
 if ((Get-FileHash -LiteralPath $stagedFile -Algorithm SHA256).Hash.ToLower() -ne $checksum) {{ exit 2 }}
 $backupFile = $targetFile + '.previous'
 try {{
@@ -99,7 +100,7 @@ try {{
   Move-Item -LiteralPath $targetFile -Destination $backupFile -Force
   try {{ Move-Item -LiteralPath $stagedFile -Destination $targetFile -Force }}
   catch {{ Move-Item -LiteralPath $backupFile -Destination $targetFile -Force; throw }}
-  Start-Process -FilePath $targetFile -ArgumentList @({args}) -WindowStyle Normal
+  Start-Process -FilePath $targetFile -ArgumentList {args} -WindowStyle Normal
 }} catch {{ $_ | Out-File -LiteralPath {powershell_literal(staged.parent/'update-error.txt')} }}
 '''
     script.write_text(source,encoding='utf-8-sig')
@@ -137,12 +138,18 @@ class UpdateManager:
                 if not self.info:self.status.update(state='current',message='Встановлено актуальну версію.');return
                 self.status.update(state='downloading',latest=self.info['version'],message='Завантаження й перевірка SHA-256…')
                 staged=download_verified(self.info,self.directory)
-                if not self.armed:
+                if not self.armed and self.status['enabled']:
                     self.installer=launch_installer(staged,self.executable,self.info['sha256'],self.restart_args);self.armed=True
                 self.status.update(state='ready',message='Версія '+self.info['version']+' готова. Її буде встановлено після закриття програми.')
             except Exception as error:self.status.update(state='error',message='Не вдалося оновити: '+str(error))
             finally:self.lock.release()
         threading.Thread(target=run,daemon=True).start()
         return self.snapshot()
+
+    def arm(self):
+        if not self.supported or not self.info or self.status['state']!='ready':raise ValueError('Оновлення ще не готове.')
+        if not self.armed:
+            self.installer=launch_installer(self.directory/'PersonnelWeb.pending.exe',self.executable,self.info['sha256'],self.restart_args)
+            self.armed=True
 
     def snapshot(self):return dict(self.status)

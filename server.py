@@ -20,7 +20,7 @@ import urllib.request
 import urllib.error
 from updater import UpdateManager
 
-VERSION = '2.1.0'
+VERSION = '2.1.1'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
@@ -373,6 +373,7 @@ class Handler(BaseHTTPRequestHandler):
                 if action=='check': updater.check_async()
                 elif action=='install':
                     if updater.snapshot()['state']!='ready': raise Problem('Оновлення ще не готове. Спочатку перевірте нову версію.')
+                    updater.arm()
                     threading.Timer(1.0, self.server.shutdown).start()
                 return self.reply(200, updater.snapshot())
             if path == '/api/logout' and self.command == 'POST':

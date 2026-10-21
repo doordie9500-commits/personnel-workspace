@@ -33,7 +33,7 @@ test('CSV handles BOM, semicolon, quoted separators, CRLF and multiline notes',(
 test('Styled calendar freezes names and header, colors cells, and calculates totals',async()=>{
   const person={id:'p1',name:'Тест',callsign:'Кедр'},state={title:'Тестовий простір',events:[{id:'e1',person_id:'p1',kind:'Робота',start:'2026-10-01',end:'2026-10-03'}]};
   const sheets=scheduleSheets(state,[person],'2026-10'),spec=sheets['Поденний графік'];
-  assert.equal(spec.rows[4][33].value,3);assert.equal(spec.rows[4][33].formula,'COUNTIFS(C5:AG5,"Р")');assert.equal(spec.freezeCols,2);assert.equal(spec.headerRow,3);assert.ok(spec.merge.includes('A1:AM1'));
+  assert.equal(spec.rows[4][33].value,3);assert.equal(spec.rows[4][33].formula,'COUNTIFS(C5:AG5,"П")');assert.equal(spec.freezeCols,2);assert.equal(spec.headerRow,3);assert.ok(spec.merge.includes('A1:AM1'));
   const blob=workbook(sheets);assert.ok(blob.size>10000);
 });
 test('Complete backup encryption round trip rejects wrong passwords and damaged bytes',async()=>{

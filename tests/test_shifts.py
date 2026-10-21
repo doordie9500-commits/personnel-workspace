@@ -20,7 +20,7 @@ class ShiftTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             server=make_server(Database(Path(folder)/'test.sqlite3'),port=0);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
             try:
-                for module in ('shifts-ui.js','shifts-model.js','chat-ui.js'):
+                for module in ('shifts-ui.js','shifts-model.js','schedule-move.js','chat-ui.js'):
                     with urllib.request.urlopen('http://127.0.0.1:'+str(server.server_port)+'/'+module) as response:self.assertEqual(response.status,200)
             finally:server.shutdown();server.server_close();thread.join()
     @unittest.skipUnless(sys.platform=='win32','Windows DPAPI')

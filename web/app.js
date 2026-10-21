@@ -8,7 +8,7 @@ const $=s=>document.querySelector(s),ROOT=$('#app'),MODAL=$('#modal');
 const KINDS=['Позиція','Відпустка','КЗВ','Лікарня','Лікарняний','ВЛК','Реабілітація'];
 const CODES={'Позиція':'П','Відпустка':'В','КЗВ':'К','Лікарня':'Л','Лікарняний':'Л','ВЛК':'М','Реабілітація':'Л'};
 const MONTHS=['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
-const NAV=[['overview','◈','Огляд'],['people','♙','Особовий склад'],['work','▦','Графік роботи'],['leave','◷','Відпустки й лікування'],['groups','▤','Групи та посади'],['audit','☷','Журнал змін'],['backups','↺','Резервні копії'],['settings','⚙','Налаштування'],['admin','⌘','Адмінка'],['newcomers','♧','Новобранці'],['management','☑','Адміністративні справи'],['adminlog','☰','Адмінжурнал'],['classes','▥','Заняття та оцінки']];
+const NAV=[['overview','◈','Огляд'],['people','♙','Особовий склад'],['work','▦','Графік позицій'],['leave','◷','Відпустки й лікування'],['groups','▤','Групи та посади'],['audit','☷','Журнал змін'],['backups','↺','Резервні копії'],['settings','⚙','Налаштування'],['admin','⌘','Адмінка'],['newcomers','♧','Новобранці'],['management','☑','Адміністративні справи'],['adminlog','☰','Адмінжурнал'],['classes','▥','Заняття та оцінки']];
 const API=(window.PERSONNEL_CONFIG?.API_URL||'').replace(/\/$/,'');
 let state,user,revision,today,view='overview',query='',group='',kind='',archived=false,metric='',month=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit'}).format(new Date()),saving=false,auditOffset=0;
 let token=sessionStorage.getItem('personnel-token')||'',noticeTimer,demoMode=false;

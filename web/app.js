@@ -6,10 +6,10 @@ import {scheduleSheets} from './schedule-export.js';
 import {workbook,readWorkbook,csvRows} from './excel.js';
 
 const $=s=>document.querySelector(s),ROOT=$('#app'),MODAL=$('#modal');
-const KINDS=['Робота','Відпустка','КЗВ','Лікарня','Лікарняний','ВЛК','Реабілітація'];
-const CODES={'Робота':'Р','Відпустка':'В','КЗВ':'К','Лікарня':'Л','Лікарняний':'Л','ВЛК':'М','Реабілітація':'Л'};
+const KINDS=['Позиція','Відпустка','КЗВ','Лікарня','Лікарняний','ВЛК','Реабілітація'];
+const CODES={'Позиція':'П','Відпустка':'В','КЗВ':'К','Лікарня':'Л','Лікарняний':'Л','ВЛК':'М','Реабілітація':'Л'};
 const MONTHS=['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
-const NAV=[['overview','◈','Огляд'],['people','♙','Особовий склад'],['work','▦','Графік роботи'],['leave','◷','Відпустки й лікування'],['groups','▤','Групи та посади'],['audit','☷','Журнал змін'],['backups','↺','Резервні копії'],['settings','⚙','Налаштування'],['admin','⌘','Адмінка'],['newcomers','♧','Новобранці'],['management','☑','Адміністративні справи'],['adminlog','☰','Адмінжурнал'],['classes','▥','Заняття та оцінки']];
+const NAV=[['overview','◈','Огляд'],['people','♙','Особовий склад'],['work','▦','Графік позицій'],['leave','◷','Відпустки й лікування'],['groups','▤','Групи та посади'],['audit','☷','Журнал змін'],['backups','↺','Резервні копії'],['settings','⚙','Налаштування'],['admin','⌘','Адмінка'],['newcomers','♧','Новобранці'],['management','☑','Адміністративні справи'],['adminlog','☰','Адмінжурнал'],['classes','▥','Заняття та оцінки']];
 const API=(window.PERSONNEL_CONFIG?.API_URL||'').replace(/\/$/,'');
 let state,user,revision,today,view='overview',query='',group='',kind='',archived=false,metric='',month=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit'}).format(new Date()),saving=false,auditOffset=0;
 let preferences={...DEFAULT_PREFERENCES},profileSession=null;
@@ -84,7 +84,7 @@ function auth(){
 function overview(){
   const active=state.people.filter(p=>!p.archived),working=active.filter(p=>current(p)?.kind==='Робота'),absent=active.filter(p=>current(p)&&current(p).kind!=='Робота'),free=active.filter(p=>!current(p));
   const area=page('Все під контролем','Кадровий огляд на '+nice(today),[btn('↻ Оновити',async()=>{try{await load();render();notify('Дані оновлено.');}catch(e){notify(e.message,true);}}),btn('+ Додати людину',()=>personForm(),'primary',user.role==='viewer')]);
-  area.append(el('div',{class:'stats'},[['Усього людей',active.length,'','personnel'],['На роботі',working.length,'work','today'],['Відпустка / лікування',absent.length,'absence','absence'],['Без кадрової події',free.length,'free','free']].map(([label,value,key])=>{const b=btn('',()=>{view='people';metric=key;render();},'stat');b.append(el('span',{class:'label'},label),el('strong',{class:'value'},value),el('span',{class:'hint'},'Відкрити список ↗'));return b;})));
+  area.append(el('div',{class:'stats'},[['Усього людей',active.length,'','personnel'],['На позиції',working.length,'work','today'],['Відпустка / лікування',absent.length,'absence','absence'],['Без кадрової події',free.length,'free','free']].map(([label,value,key])=>{const b=btn('',()=>{view='people';metric=key;render();},'stat');b.append(el('span',{class:'label'},label),el('strong',{class:'value'},value),el('span',{class:'hint'},'Відкрити список ↗'));return b;})));
   const upcoming=state.events.filter(e=>!e.cancelled&&!e.returned_on&&e.kind!=='Робота'&&e.end>=today).sort((a,b)=>a.start.localeCompare(b.start)).slice(0,6);
   const body=el('div',{class:'panel-body'},upcoming.length?upcoming.map(e=>{const p=state.people.find(p=>p.id===e.person_id);return el('div',{class:'list-row'},personNode(p),el('div',{},badge(e.kind,typeClass(e.kind)),el('small',{},nice(e.start)+' — '+nice(e.end))),el('div',{class:'actions'},btn('Відкрити',()=>eventForm(e),'small'),personReturnButton(p)));}):empty('Немає запланованих відсутностей','Оформіть відпустку або лікування через календар.'));
   const recent=state.people.filter(p=>!p.archived).slice(-5).reverse();

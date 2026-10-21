@@ -19,22 +19,20 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Configure API endpoint
-        env:
-          API_URL: ${{ vars.API_URL }}
+      - name: Publish redirect to the same-origin application
         run: |
-          python - <<'PY'
-          import json, os
+          python - <<'PYREDIRECT'
           from pathlib import Path
-          url = os.environ.get('API_URL', '').rstrip('/')
-          if url and not url.startswith('https://'):
-              raise SystemExit('API_URL must be HTTPS, or empty for the read-only fictional demo.')
-          Path('web/config.js').write_text('window.PERSONNEL_CONFIG = '+json.dumps({'API_URL': url})+';\n')
-          PY
+          import json
+          target='https://personnel-workspace-api.kadrovyi-prostir.workers.dev/'
+          folder=Path('_pages');folder.mkdir(exist_ok=True)
+          (folder/'index.html').write_text('<!doctype html><html lang="uk"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Кадровий простір</title><script src="redirect.js" defer></script><h1>Кадровий простір</h1><p>Сайт працює на захищеній адресі Cloudflare.</p><a href="'+target+'">Відкрити сайт</a></html>',encoding='utf-8')
+          (folder/'redirect.js').write_text('location.replace('+json.dumps(target)+'+location.search+location.hash);',encoding='utf-8')
+          PYREDIRECT
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: _pages
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

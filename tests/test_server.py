@@ -62,6 +62,16 @@ class StateTests(unittest.TestCase):
         result=validate_state(dict(self.state,people=[p],events=[e]))
         self.assertNotIn('location',result['people'][0]);self.assertNotIn('place_id',result['events'][0])
 
+    def test_categories_and_general_classes(self):
+        self.state['people'][0]['category']='Новобранець'
+        self.state['classes']=[dict(id='c1',day='2026-10-21',title='Документообіг',teacher='Тест',notes='')]
+        self.state['grades']=[dict(id='g1',class_id='c1',person_id='p1',score=84,notes='')]
+        result=validate_state(self.state)
+        self.assertEqual(result['people'][0]['category'],'Новобранець')
+        self.assertEqual(result['grades'][0]['score'],84)
+        self.state['grades'][0]['score']=101
+        with self.assertRaises(Problem):validate_state(self.state)
+
 
 class DatabaseTests(unittest.TestCase):
     def setUp(self):
@@ -205,6 +215,17 @@ class HTTPTests(DatabaseTests):
                 self.assertIn('SHARE_URL',response.read().decode())
         finally:
             remote.shutdown();remote.server_close();thread.join()
+
+    def test_manual_registration_and_complete_backup_restore(self):
+        self.assertEqual(self.call('/api/register',{'login':'manual','password':'ManualPassword123!','role':'editor'},self.token)[0],200)
+        status,backup=self.call('/api/full-backup',token=self.token)
+        self.assertEqual(status,200);self.assertEqual(len(backup['tables']['users']),2)
+        self.assertTrue(backup['tables']['users'][0]['password'])
+        self.assertEqual(self.call('/api/full-restore',{'backup':backup,'revision':0,'confirm':'wrong'},self.token)[0],400)
+        status,result=self.call('/api/full-restore',{'backup':backup,'revision':0,'confirm':'ВІДНОВИТИ БАЗУ'},self.token)
+        self.assertEqual(status,200);self.assertTrue(result['sign_in_again'])
+        self.assertEqual(self.call('/api/state',token=self.token)[0],401)
+        self.assertTrue(list(Path(self.temp.name).glob('before-full-restore-*.sqlite3')))
 
 
 if __name__=='__main__':unittest.main()

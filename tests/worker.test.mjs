@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import worker,{validate,passwordHash} from '../cloudflare/worker.js';
 
-function d1(){const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../cloudflare/schema.sql',import.meta.url),'utf8'));function prepared(sql,args=[]){return {bind(...values){return prepared(sql,values);},async first(){return db.prepare(sql).get(...args)||null;},async all(){return {results:db.prepare(sql).all(...args)};},async run(){const info=db.prepare(sql).run(...args);return {meta:{changes:Number(info.changes)}};}};}return {prepare:sql=>prepared(sql),async batch(statements){db.exec('BEGIN IMMEDIATE');try{const result=[];for(const s of statements)result.push(await s.run());db.exec('COMMIT');return result;}catch(e){db.exec('ROLLBACK');throw e;}},close:()=>db.close()};}
+function d1(){const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../cloudflare/schema.sql',import.meta.url),'utf8'));function prepared(sql,args=[]){return {bind(...values){return prepared(sql,values);},async first(){return db.prepare(sql).get(...args)||null;},async all(){return {results:db.prepare(sql).all(...args)};},async run(){if(/^SELECT/i.test(sql.trim()))return {results:db.prepare(sql).all(...args),meta:{changes:0}};const info=db.prepare(sql).run(...args);return {meta:{changes:Number(info.changes)}};}};}return {prepare:sql=>prepared(sql),async batch(statements){db.exec('BEGIN IMMEDIATE');try{const result=[];for(const s of statements)result.push(await s.run());db.exec('COMMIT');return result;}catch(e){db.exec('ROLLBACK');throw e;}},close:()=>db.close()};}
 function state(){return {title:'Тест',people:[{id:'p1',name:'Тестова людина',callsign:'Тест',rank:'',role:'',unit:'',phone:'',group:'',notes:'',service_since:'2020-01-01',archived:false}],events:[],groups:[],roles:[]};}
 async function call(env,path,{body,token,origin}={}){const response=await worker.fetch(new Request('https://api.example/api/'+path,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{}),...(origin?{Origin:origin}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})}),env);return {status:response.status,data:await response.json()};}
 
@@ -39,3 +39,18 @@ test('Worker preserves planned dates while return frees subsequent days',()=>{
   const s=state();s.events=[{id:'a',person_id:'p1',kind:'ВЛК',start:'2020-01-01',end:'2020-01-20',returned_on:'2020-01-03',notes:''},{id:'b',person_id:'p1',kind:'Робота',start:'2020-01-03',end:'2020-01-05',notes:''}];assert.equal(validate(s).events[0].end,'2020-01-20');s.events[1].start='2020-01-02';assert.throws(()=>validate(s));
 });
 test('Worker salts passwords and never contains plaintext',async()=>{const first=await passwordHash('SecureTestPassword123!'),second=await passwordHash('SecureTestPassword123!');assert.notEqual(first,second);assert.ok(!first.includes('SecureTest'));assert.equal(await passwordHash('SecureTestPassword123!',first.split(':')[0]),first);});
+test('Cloudflare complete backup includes accounts and atomically restores with session revocation',async()=>{
+  const DB=d1(),env={DB,ADMIN_LOGIN:'admin',ADMIN_PASSWORD:'BackupAdminPassword123!',ALLOWED_ORIGINS:''};
+  try{
+    const owner=await call(env,'login',{body:{login:'admin',password:env.ADMIN_PASSWORD}}),token=owner.data.token;
+    assert.equal((await call(env,'register',{token,body:{login:'manual','password':'ManualPassword123!','role':'editor'}})).status,200);
+    const backup=(await call(env,'full-backup',{token})).data;assert.equal(backup.tables.users.length,2);assert.equal(backup.tables.workspace.length,1);
+    const result=await call(env,'full-restore',{token,body:{backup,revision:0,confirm:'ВІДНОВИТИ БАЗУ'}});assert.equal(result.status,200,JSON.stringify(result));assert.ok(result.data.sign_in_again);
+    assert.equal((await call(env,'state',{token})).status,401);
+    assert.equal((await call(env,'login',{body:{login:'manual',password:'ManualPassword123!'}})).status,200);
+  }finally{DB.close();}
+});
+test('General class grade integrity and administrative board validation',()=>{
+  const data=state();data.people[0].category='Новобранець';data.classes=[{id:'c1',day:'2026-10-21',title:'Документообіг',teacher:'Тест',notes:''}];data.grades=[{id:'g1',class_id:'c1',person_id:'p1',score:75,notes:''}];data.admin_tasks=[{id:'t1',title:'Оновити документи',due:'2026-10-22',owner:'Адміністратор',status:'Заплановано',notes:''}];
+  assert.equal(validate(data).grades[0].score,75);assert.equal(validate(data).people[0].category,'Новобранець');data.grades[0].class_id='missing';assert.throws(()=>validate(data));
+});

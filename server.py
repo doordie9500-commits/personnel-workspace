@@ -19,15 +19,17 @@ from urllib.parse import urlsplit, parse_qs
 import urllib.request
 import urllib.error
 from updater import UpdateManager
+from admin_extensions import CATEGORIES,EXTRA_TABLES,validate_extensions
+from fullbackup import full_backup,restore_full
 
-VERSION = '2.1.1'
+VERSION = '2.2.0'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
 STATIC = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'web'
 MAX_BODY = 2_000_000
 ONLINE_API = 'https://personnel-workspace-api.kadrovyi-prostir.workers.dev'
-ONLINE_SITE = 'https://doordie9500-commits.github.io/personnel-workspace/'
+ONLINE_SITE = 'https://personnel-workspace-api.kadrovyi-prostir.workers.dev/'
 
 
 class Problem(Exception):
@@ -150,13 +152,19 @@ def validate_state(raw):
             per_person[e['person_id']].append((e['start'], effective_end))
         event_ids.add(e['id'])
         result['events'].append(e)
+    for index,person in enumerate(result['people']):
+        category=raw['people'][index].get('category',CATEGORIES[0])
+        if category not in CATEGORIES:raise Problem('Невідома категорія людини.')
+        person['category']=category
+    try:result.update(validate_extensions(raw,ids,text,valid_day))
+    except (ValueError,TypeError,AttributeError) as exc:raise Problem(str(exc))
     return result
 
 
 def changes(before, after):
     result = []
-    for table in ('people', 'events'):
-        old, new = {v['id']: v for v in before[table]}, {v['id']: v for v in after[table]}
+    for table in ('people', 'events')+EXTRA_TABLES:
+        old, new = {v['id']: v for v in before.get(table,[])}, {v['id']: v for v in after.get(table,[])}
         for key in sorted(old.keys() | new.keys()):
             a, b = old.get(key), new.get(key)
             if a != b:
@@ -252,6 +260,15 @@ class Database:
                 backup = db.execute('SELECT data FROM backups WHERE id=?', (restore_id,)).fetchone()
                 if not backup: raise Problem('Резервну копію не знайдено.', 404)
                 raw = json.loads(backup['data'])
+            elif isinstance(raw,dict):
+                raw=copy.deepcopy(raw)
+                previous=json.loads(row['data'])
+                previous_people={p['id']:p for p in previous['people']}
+                for person in raw.get('people',[]):
+                    if isinstance(person,dict) and 'category' not in person and person.get('id') in previous_people:
+                        person['category']=previous_people[person['id']].get('category',CATEGORIES[0])
+                for name in EXTRA_TABLES:
+                    if name not in raw and name in previous:raw[name]=previous[name]
             data = validate_state(raw)
             diff = changes(json.loads(row['data']), data)
             if diff:
@@ -336,7 +353,7 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if not path.startswith('/api/'):
                 if self.command != 'GET': raise Problem('Метод не підтримується.', 405)
-                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
+                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','schedule-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
                 if path not in names: raise Problem('Сторінку не знайдено.', 404)
                 file = STATIC/names[path]
                 if path=='/config.js' and self.server.cloud_api:
@@ -348,7 +365,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = {}
             if self.command == 'POST':
                 length = int(self.headers.get('Content-Length', '0'))
-                if not 0 < length <= MAX_BODY: raise Problem('Запит надто великий або порожній.', 413)
+                if not 0 < length <= (20_000_000 if path=='/api/full-restore' else MAX_BODY): raise Problem('Запит надто великий або порожній.', 413)
                 if self.headers.get_content_type() != 'application/json': raise Problem('Очікується JSON.', 415)
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict): raise Problem('Очікується об’єкт JSON.')
@@ -360,6 +377,21 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/redeem' and self.command == 'POST': return self.reply(200, db.redeem(payload.get('invitation'), payload.get('login'), payload.get('password'), self.client_address[0]))
             token = self.headers.get('Authorization', '').removeprefix('Bearer ')
             user = self.cloud_identity(token) if self.server.cloud_api else db.identity(token)
+            if path=='/api/register' and self.command=='POST':
+                if user['role']!='owner' or payload.get('role') not in ('viewer','editor'):raise Problem('Доступ адміністратора.',403)
+                login=text(payload.get('login'),100,True).casefold()
+                with db.connect() as conn:
+                    if conn.execute('SELECT id FROM users WHERE login=?',(login,)).fetchone():raise Problem('Логін уже існує.')
+                    conn.execute('INSERT INTO users VALUES(?,?,?,?,1)',(secrets.token_hex(12),login,password_hash(payload.get('password')),payload['role']))
+                    conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(now(),user['login'],'Створено обліковий запис: '+login,'[]'))
+                return self.reply(200,{'ok':True})
+            if path=='/api/full-backup' and self.command=='GET':
+                if user['role']!='owner':raise Problem('Доступ адміністратора.',403)
+                return self.reply(200,full_backup(db))
+            if path=='/api/full-restore' and self.command=='POST':
+                if user['role']!='owner':raise Problem('Доступ адміністратора.',403)
+                try:return self.reply(200,restore_full(db,user,payload,validate_state))
+                except ValueError as exc:raise Problem(str(exc))
             if path == '/api/state' and self.command == 'GET': return self.reply(200, dict(db.read(), user=user))
             if path == '/api/state' and self.command == 'POST': return self.reply(200, db.commit(user, payload.get('state'), payload.get('revision'), payload.get('action', 'Оновлення')))
             if path == '/api/update':
@@ -434,7 +466,7 @@ class Handler(BaseHTTPRequestHandler):
         request=urllib.request.Request(self.server.cloud_api+self.path,data=json.dumps(payload,ensure_ascii=False).encode() if payload is not None else None,headers={'Authorization':self.headers.get('Authorization',''),'Content-Type':'application/json','User-Agent':'Mozilla/5.0 PersonnelWorkspace-PC/'+VERSION},method=self.command)
         try:
             with urllib.request.urlopen(request,timeout=30) as response:
-                return self.reply(response.status,body=response.read(MAX_BODY+1))
+                return self.reply(response.status,body=response.read(20_000_001 if urlsplit(self.path).path=='/api/full-backup' else MAX_BODY+1))
         except urllib.error.HTTPError as error:
             try:return self.reply(error.code,body=error.read(MAX_BODY+1))
             finally:error.close()

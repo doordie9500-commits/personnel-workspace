@@ -6,4 +6,5 @@ CREATE TABLE IF NOT EXISTS workspace(id INTEGER PRIMARY KEY CHECK(id=1),revision
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,actor TEXT NOT NULL,action TEXT NOT NULL,details TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS backups(id TEXT PRIMARY KEY,created TEXT NOT NULL,actor TEXT NOT NULL,revision INTEGER NOT NULL,data TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY,count INTEGER NOT NULL,reset INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS recovery(id TEXT PRIMARY KEY,created TEXT NOT NULL,data TEXT NOT NULL);
 INSERT OR IGNORE INTO workspace VALUES(1,0,'{"people":[],"events":[],"groups":[],"roles":["Мех. Вод.","Ком. Гар.","Навідник","номер обслуги #1","номер обслуги #2"],"title":"Кадровий простір"}');

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/config-schema.json",
+  "name": "personnel-workspace-api",
+  "account_id": "6b1bdab6396597479cebc8b6c1b63e1b",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-21",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://doordie9500-commits.github.io",
+    "ADMIN_LOGIN": "admin"
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "personnel-workspace", "database_id": "dee93325-662f-4f70-91f4-2452eb2ca595" }
+  ]
+}

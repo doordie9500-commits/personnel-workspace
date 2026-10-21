@@ -46,6 +46,21 @@ python demo.py
 
 ## GitHub Pages та онлайн-база
 
+### Безкоштовний варіант: GitHub Pages + Cloudflare Workers / D1
+
+`cloudflare/worker.js` реалізує API з тими самими кадровими можливостями для Cloudflare Workers. `cloudflare/schema.sql` створює порожню D1-базу. Це альтернативний сервер: Python для PC, Worker для безкоштовного хостингу. Паролі у Worker хешуються WebCrypto PBKDF2-SHA256 із 100000 ітерацій (ліміт цього runtime); локальний Python використовує 300000. Паролі та токени двох серверів не переносяться автоматично.
+
+1. Авторизуйте офіційний Wrangler із дозволами читання облікового запису, `workers_scripts:write`, `d1:write`.
+2. Створіть D1 `personnel-workspace`, внесіть її ідентифікатор і свій `account_id` у `cloudflare/wrangler.jsonc`.
+3. Застосуйте `cloudflare/schema.sql` один раз. Для подальших змін використовуйте окремі міграції, не очищайте базу.
+4. Розгорніть Worker: `wrangler deploy --config cloudflare/wrangler.jsonc`.
+5. Додайте секрет `ADMIN_PASSWORD` через `wrangler secret put ADMIN_PASSWORD --config cloudflare/wrangler.jsonc`. Його значення ніколи не записуйте в код. Перший правильний вхід із цим паролем створює адміністратора. Після створення адміністратора секрет можна видалити.
+6. У `ALLOWED_ORIGINS` залиште точну адресу GitHub Pages. Адресу Worker додайте як repository variable `API_URL` і повторно запустіть Pages workflow.
+
+У безкоштовних планів діють квоти Cloudflare. Тарифи та квоти перевіряйте в офіційній документації: https://developers.cloudflare.com/d1/platform/pricing/ . Платний план не потрібен для початкової невеликої бази; при вичерпанні квот запити можуть відхилятися. Доступ до бази перевіряється сервером для кожного запиту; GitHub містить лише код, а не кадрові записи.
+
+Перевірки Worker: `node --test tests/worker.test.mjs` (Node 22.13+ із вбудованим SQLite). Тести використовують окрему базу в пам’яті, а не Cloudflare D1 користувача.
+
 GitHub Pages розміщує статичний інтерфейс, але не запускає Python і SQLite. Тому є два варіанти:
 
 1. **Рекомендований простий варіант:** весь застосунок на HTTPS-сервері, який запускається з цього GitHub-репозиторію. Браузер і API працюють на одній адресі, база — на постійному диску.

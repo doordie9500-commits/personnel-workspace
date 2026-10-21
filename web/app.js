@@ -51,7 +51,11 @@ function summary(count){const parts=[query&&'пошук: '+query,group&&'гру�
 function render(){
   if(!state||!user)return;
   ROOT.replaceChildren(el('div',{class:'shell'},el('aside',{class:'sidebar'},el('div',{class:'brand'},el('span',{class:'brand-icon'},'К'),el('span',{},'Кадровий простір')),el('div',{class:'eyebrow'},'Робочий простір'),NAV.map(([key,icon,title])=>btn('',()=>navigate(key),'nav'+(view===key?' active':'')).appendChild(el('span',{},icon)).parentNode),el('div',{class:'side-footer'},el('strong',{},'Спільна база · v2.0.0'),'Кадровий облік по днях',el('div',{},btn('Вийти з облікового запису',logout)))) ,el('main',{class:'main'},el('header',{class:'topbar'},el('div',{class:'breadcrumb'},state.title+' / '+(NAV.find(n=>n[0]===view)?.[2]||'')),el('div',{class:'top-status'},el('span',{},el('i',{class:'dot'}),'Збережено · версія '+revision),el('span',{class:'current-date'},nice(today)),el('span',{class:'avatar',title:user.login},short(user.login)))),el('div',{class:'content',id:'content'}))));
-  document.querySelectorAll('.nav').forEach((node,i)=>node.append(NAV[i][2]));renderBody();
+  document.querySelectorAll('.nav').forEach((node,i)=>node.append(NAV[i][2]));
+  const mobileNav=select([...NAV.map(([key,,title])=>[key,title]),['logout','Вийти']],view,next=>next==='logout'?logout():navigate(next));
+  mobileNav.className='mobile-nav';mobileNav.setAttribute('aria-label','Розділ');
+  $('.sidebar').insertBefore(mobileNav,$('.side-footer'));
+  renderBody();
 }
 function renderBody(){
   // Preserve an active search field and caret when filtering tables.

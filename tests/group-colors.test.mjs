@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {PALETTE,groupColor,validateColors} from '../web/group-colors.js';
+test('Group colors are stable, editable and reject CSS injection',()=>{assert.ok(PALETTE.includes(groupColor({},'Фін')));assert.equal(groupColor({},'Фін'),groupColor({},'Фін'));assert.equal(groupColor({group_colors:{'Фін':'#123456'}},'Фін'),'#123456');assert.deepEqual(validateColors(),{});for(const value of [null,[],{'Фін':'red;display:none'},{'':'#123456'}])assert.throws(()=>validateColors(value));});

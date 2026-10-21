@@ -24,7 +24,7 @@ from updater import UpdateManager
 from admin_extensions import CATEGORIES,EXTRA_TABLES,validate_extensions
 from fullbackup import full_backup,restore_full
 
-VERSION = '2.4.3'
+VERSION = '2.4.4'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
@@ -162,6 +162,11 @@ def validate_state(raw):
         result.update(validate_extensions(raw,ids,text,valid_day))
         result.update(validate_shifts(raw,text))
     except (ValueError,TypeError,AttributeError) as exc:raise Problem(str(exc))
+    colors=raw.get('group_colors',{})
+    if not isinstance(colors,dict) or len(colors)>1000:raise Problem('Некоректні кольори груп.')
+    for name,color in colors.items():
+        if not isinstance(name,str) or not name.strip() or len(name)>100 or not isinstance(color,str) or len(color)!=7 or color[0]!='#' or any(c not in '0123456789abcdefABCDEF' for c in color[1:]):raise Problem('Некоректний колір групи.')
+    result['group_colors']=colors.copy()
     return result
 
 
@@ -173,9 +178,9 @@ def changes(before, after):
             a, b = old.get(key), new.get(key)
             if a != b:
                 result.append({'table': table, 'id': key, 'before': a, 'after': b})
-    for key in ('groups', 'roles', 'title'):
-        if before[key] != after[key]:
-            result.append({'table': key, 'before': before[key], 'after': after[key]})
+    for key in ('groups', 'roles', 'title','group_colors'):
+        if before.get(key) != after.get(key):
+            result.append({'table': key, 'before': before.get(key), 'after': after.get(key)})
     return result
 
 
@@ -255,7 +260,7 @@ CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,cr
             row = db.execute('SELECT * FROM workspace WHERE id=1').fetchone()
         return {'revision': row['revision'], 'state': json.loads(row['data']), 'today': today(), 'version': VERSION}
 
-    def commit(self, user, raw, revision, action='Оновлення', restore_id=None):
+    def commit(self, user, raw, revision, action='Оновлення', restore_id=None, delete_person=None, replace=False):
         if user['role'] == 'viewer':
             raise Problem('У вас доступ лише для перегляду.', 403)
         with self.connect() as db:
@@ -275,12 +280,22 @@ CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,cr
                 for person in raw.get('people',[]):
                     if isinstance(person,dict) and 'category' not in person and person.get('id') in previous_people:
                         person['category']=previous_people[person['id']].get('category',CATEGORIES[0])
-                for name in EXTRA_TABLES+SHIFT_TABLES:
+                for name in EXTRA_TABLES+SHIFT_TABLES+('group_colors',):
                     if name not in raw and name in previous:raw[name]=previous[name]
-            if not restore_id:
+            if not restore_id and not replace:
                 try:prepare_shifts(raw,json.loads(row['data']),user)
                 except (ValueError,TypeError,KeyError,AttributeError) as exc:raise Problem(str(exc))
             data = validate_state(raw)
+            if replace and user['role'] != 'owner': raise Problem('Доступ адміністратора.',403)
+            if not restore_id and not replace:
+                previous_people={p['id']:p for p in json.loads(row['data'])['people']}
+                removed=set(previous_people)-{p['id'] for p in data['people']}
+                if removed:
+                    if user['role']!='owner' or not delete_person or removed!={delete_person.get('id')}:
+                        raise Problem('Картки захищено. Спочатку архівуйте людину; остаточне видалення доступне лише через особову картку.',403)
+                    person=previous_people[delete_person['id']]
+                    if not person['archived'] or delete_person.get('confirmation')!=person['name']:
+                        raise Problem('Спочатку архівуйте картку та введіть повний ПІБ без змін.',403)
             diff = changes(json.loads(row['data']), data)
             if diff:
                 db.execute('INSERT INTO backups VALUES(?,?,?,?,?)', (secrets.token_hex(12), now(), user['login'], revision, row['data']))
@@ -365,7 +380,7 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if not path.startswith('/api/'):
                 if self.command != 'GET': raise Problem('Метод не підтримується.', 405)
-                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js','shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js', 'schedule-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
+                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js','shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js', 'schedule-export.js','group-colors.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
                 if path not in names: raise Problem('Сторінку не знайдено.', 404)
                 file = STATIC/names[path]
                 if path=='/config.js' and self.server.cloud_api:
@@ -430,6 +445,16 @@ class Handler(BaseHTTPRequestHandler):
                 try:return self.reply(200,restore_full(db,user,payload,validate_state))
                 except ValueError as exc:raise Problem(str(exc))
             if path == '/api/state' and self.command == 'GET': return self.reply(200, dict(db.read(), user=user))
+            if path == '/api/delete-person' and self.command == 'POST':
+                current=db.read()
+                raw=current['state']
+                person_id=payload.get('id')
+                raw['people']=[p for p in raw['people'] if p['id']!=person_id]
+                for table in ('events','grades'):raw[table]=[r for r in raw.get(table,[]) if r.get('person_id')!=person_id]
+                return self.reply(200,db.commit(user,raw,payload.get('revision'),'Остаточно видалено архівну картку',delete_person=payload))
+            if path == '/api/restore-state' and self.command == 'POST':
+                if payload.get('confirmation')!='ВІДНОВИТИ БАЗУ':raise Problem('Потрібне підтвердження відновлення.',403)
+                return self.reply(200,db.commit(user,payload.get('state'),payload.get('revision'),'Відновлення кадрової бази з JSON',replace=True))
             if path == '/api/state' and self.command == 'POST': return self.reply(200, db.commit(user, payload.get('state'), payload.get('revision'), payload.get('action', 'Оновлення')))
             if path == '/api/update':
                 if user['role'] != 'owner': raise Problem('Оновлення програми доступне адміністратору.', 403)

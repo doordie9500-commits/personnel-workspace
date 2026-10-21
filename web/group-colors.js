@@ -1,0 +1,3 @@
+export const PALETTE=['#2f856b','#4b7fc4','#9871bd','#bd7650','#bd6685','#488f9b','#808b46','#7566c1'];
+export function groupColor(state,name){let hash=0;for(const c of name||'')hash=(hash*31+c.charCodeAt(0))>>>0;return state.group_colors&&Object.hasOwn(state.group_colors,name)?state.group_colors[name]:PALETTE[hash%PALETTE.length];}
+export function validateColors(raw={}){if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).length>1000)throw Error('Некоректні кольори груп.');for(const [name,color] of Object.entries(raw))if(!name.trim()||name.length>100||typeof color!=='string'||!/^#[0-9a-f]{6}$/i.test(color))throw Error('Некоректний колір групи.');return {...raw};}

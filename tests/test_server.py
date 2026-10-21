@@ -23,6 +23,12 @@ class StateTests(unittest.TestCase):
         self.state=empty_state()
         self.state['people']=[person()]
 
+    def test_group_colors_validation(self):
+        self.state['group_colors']={'Фін':'#4b7fc4'}
+        self.assertEqual(validate_state(self.state)['group_colors'],self.state['group_colors'])
+        self.state['group_colors']={'Фін':'red;display:none'}
+        with self.assertRaises(Problem):validate_state(self.state)
+
     def test_date_inclusive_conflict(self):
         self.state['events']=[event(),event('e2','2026-01-03','2026-01-05','Відпустка')]
         with self.assertRaises(Problem):validate_state(self.state)
@@ -82,6 +88,21 @@ class DatabaseTests(unittest.TestCase):
         self.token=result['token'];self.user=result['user']
 
     def tearDown(self):self.temp.cleanup()
+
+    def test_person_deletion_requires_archive_owner_and_exact_name(self):
+        state=empty_state();state['people']=[person()]
+        saved=self.db.commit(self.user,state,0)
+        removed=copy.deepcopy(saved['state']);removed['people']=[]
+        confirmation=dict(id='p1',confirmation='Тестова людина')
+        with self.assertRaises(Problem):self.db.commit(self.user,removed,1)
+        with self.assertRaises(Problem):self.db.commit(self.user,removed,1,delete_person=confirmation)
+        state=saved['state'];state['people'][0]['archived']=True
+        saved=self.db.commit(self.user,state,1)
+        with self.assertRaises(Problem):self.db.commit(self.user,removed,2,delete_person=dict(id='p1',confirmation='помилка'))
+        with self.assertRaises(Problem):self.db.commit(dict(self.user,role='editor'),removed,2,delete_person=confirmation)
+        saved=self.db.commit(self.user,removed,2,delete_person=confirmation)
+        self.assertEqual(saved['state']['people'],[])
+        with self.db.connect() as conn:self.assertEqual(conn.execute('SELECT count(*) FROM backups').fetchone()[0],3)
 
     def test_password_and_session_stored_as_hashes(self):
         with self.db.connect() as conn:

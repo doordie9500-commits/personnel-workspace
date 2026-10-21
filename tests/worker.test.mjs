@@ -17,7 +17,12 @@ test('Warehouse API persists snapshots, rejects overlaps, archives and stale/vie
   assert.equal((await call(env,'state',{token:owner,body:{state:saved.data.state,revision:0}})).status,409);
   await call(env,'register',{token:owner,body:{login:'readonly',password:'ReadonlyPassword123!',role:'viewer'}});const viewer=(await call(env,'login',{body:{login:'readonly',password:'ReadonlyPassword123!'}})).data.token;assert.equal((await call(env,'state',{token:viewer,body:{state:saved.data.state,revision:1}})).status,403);
   const finished=structuredClone(saved.data.state);finished.shifts[0].status='Завершили зміну';finished.shifts[0].actual_end='2026-10-21T18:00:00.000Z';saved=await call(env,'state',{token:owner,body:{state:finished,revision:1}});assert.equal(saved.status,200);
-  const removed=structuredClone(saved.data.state);removed.people=[];removed.groups=[];saved=await call(env,'state',{token:owner,body:{state:removed,revision:2}});assert.equal(saved.status,200);assert.equal(saved.data.state.shifts[0].members[0].name,'Тест Працівник');
+  const removed=structuredClone(saved.data.state);removed.people=[];removed.groups=[];assert.equal((await call(env,'state',{token:owner,body:{state:removed,revision:2}})).status,403);
+  const person=saved.data.state.people[0];assert.equal((await call(env,'delete-person',{token:owner,body:{id:person.id,confirmation:person.name,revision:2}})).status,403);
+  const archivedPerson=structuredClone(saved.data.state);archivedPerson.people[0].archived=true;archivedPerson.group_colors={'Група 1':'#4b7fc4'};saved=await call(env,'state',{token:owner,body:{state:archivedPerson,revision:2}});assert.equal(saved.status,200);assert.deepEqual(saved.data.state.group_colors,archivedPerson.group_colors);
+  assert.equal((await call(env,'delete-person',{token:owner,body:{id:person.id,confirmation:'помилка',revision:3}})).status,403);
+  saved=await call(env,'delete-person',{token:owner,body:{id:person.id,confirmation:person.name,revision:3}});assert.equal(saved.status,200);assert.equal(saved.data.state.people.length,0);assert.equal(saved.data.state.shifts[0].members[0].name,'Тест Працівник');
+
   const backup=(await call(env,'full-backup',{token:owner})).data;assert.equal(JSON.parse(backup.tables.workspace[0].data).shifts.length,1);
   const audit=(await call(env,'audit',{token:owner})).data;assert.ok(audit.some(r=>r.details.some(d=>d.table==='shifts'&&d.actor_id)));
  }finally{DB.close();}

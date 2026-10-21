@@ -5,6 +5,7 @@ export function worksheetXML(input){
   const spec=Array.isArray(input)?{rows:input}:input,rows=spec.rows,width=Math.max(1,...rows.map(r=>r.length)),header=spec.headerRow??0,end=spec.dataEndRow??rows.length-1,freezeRows=spec.freezeRows??header+1,freezeCols=spec.freezeCols??0;
   const styles={Р:6,В:7,К:9,Л:8,М:8};
   function cell(value,r,c){let style=r===header?3:spec.totalRow===r?10:r===0&&spec.title?1:r===1&&spec.title?2:4;if(spec.days&&r>header&&r<=end&&c>=2&&c<spec.days+2){style=styles[value]||(spec.weekends?.includes(c-2)?5:11);}if(spec.days&&r>header&&r<=end&&c>=spec.days+2)style=10;
+    if(r>header&&c===spec.statusColumn)style=({'Заплановано':7,'Виїжджають':9,'Прибули на склад':7,'Працюють':6,'Завершили зміну':5,'Вихідний':9,'Скасовано':8})[value]||4;
     const ref=column(c)+(r+1),formula=value&&typeof value==='object'&&typeof value.formula==='string';
     return formula?`<c r="${ref}" s="${style}"><f>${xml(value.formula)}</f><v>${Number(value.value)||0}</v></c>`:typeof value==='number'?`<c r="${ref}" s="${style}"><v>${value}</v></c>`:`<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
   }

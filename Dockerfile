@@ -4,6 +4,7 @@ WORKDIR /app
 COPY server.py /app/server.py
 COPY updater.py /app/updater.py
 COPY admin_extensions.py fullbackup.py preferences.py chat.py /app/
+COPY shifts.py local_backups.py backup_windows.py /app/
 COPY web /app/web
 RUN useradd --uid 10001 --create-home personnel && mkdir /data && chown personnel:personnel /data
 USER personnel

@@ -18,11 +18,13 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 import urllib.request
 import urllib.error
+import local_backups
+from shifts import SHIFT_TABLES,validate_shifts,prepare_shifts
 from updater import UpdateManager
 from admin_extensions import CATEGORIES,EXTRA_TABLES,validate_extensions
 from fullbackup import full_backup,restore_full
 
-VERSION = '2.3.0'
+VERSION = '2.4.0'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
@@ -156,14 +158,16 @@ def validate_state(raw):
         category=raw['people'][index].get('category',CATEGORIES[0])
         if category not in CATEGORIES:raise Problem('Невідома категорія людини.')
         person['category']=category
-    try:result.update(validate_extensions(raw,ids,text,valid_day))
+    try:
+        result.update(validate_extensions(raw,ids,text,valid_day))
+        result.update(validate_shifts(raw,text))
     except (ValueError,TypeError,AttributeError) as exc:raise Problem(str(exc))
     return result
 
 
 def changes(before, after):
     result = []
-    for table in ('people', 'events')+EXTRA_TABLES:
+    for table in ('people', 'events')+EXTRA_TABLES+SHIFT_TABLES:
         old, new = {v['id']: v for v in before.get(table,[])}, {v['id']: v for v in after.get(table,[])}
         for key in sorted(old.keys() | new.keys()):
             a, b = old.get(key), new.get(key)
@@ -271,13 +275,16 @@ CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,cr
                 for person in raw.get('people',[]):
                     if isinstance(person,dict) and 'category' not in person and person.get('id') in previous_people:
                         person['category']=previous_people[person['id']].get('category',CATEGORIES[0])
-                for name in EXTRA_TABLES:
+                for name in EXTRA_TABLES+SHIFT_TABLES:
                     if name not in raw and name in previous:raw[name]=previous[name]
+            if not restore_id:
+                try:prepare_shifts(raw,json.loads(row['data']),user)
+                except (ValueError,TypeError,KeyError,AttributeError) as exc:raise Problem(str(exc))
             data = validate_state(raw)
             diff = changes(json.loads(row['data']), data)
             if diff:
                 db.execute('INSERT INTO backups VALUES(?,?,?,?,?)', (secrets.token_hex(12), now(), user['login'], revision, row['data']))
-                db.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), user['login'], text(action, 150, True), json.dumps(diff, ensure_ascii=False)))
+                db.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), user['login'], text(action, 150, True), json.dumps([dict(change,actor_id=user['id']) for change in diff], ensure_ascii=False)))
                 db.execute('UPDATE workspace SET revision=revision+1,data=? WHERE id=1', (json.dumps(data, ensure_ascii=False),))
                 # Last 100 snapshots plus full audit. Export before long-term retention changes.
                 db.execute('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY rowid DESC LIMIT 100)')
@@ -289,7 +296,7 @@ CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,cr
         token = secrets.token_urlsafe(32)
         with self.connect() as db:
             db.execute('INSERT INTO invitations VALUES(?,?,?,0)', (digest(token), role, time.time()+48*3600))
-            db.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), user['login'], 'Створено запрошення: '+role, '[]'))
+            db.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), user['login'], 'Створено запрошення: '+role, json.dumps([dict(actor_id=user['id'])])))
         return {'invitation': token, 'hours': 48}
 
     def redeem(self, token, login, password, ip):
@@ -301,9 +308,10 @@ CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,cr
             invite = db.execute('SELECT * FROM invitations WHERE token=? AND used=0 AND expires>?', (digest(str(token)), time.time())).fetchone()
             if not invite: raise Problem('Запрошення недійсне, використане або прострочене.', 403)
             if db.execute('SELECT id FROM users WHERE login=?', (login,)).fetchone(): raise Problem('Цей логін уже існує.')
-            db.execute('INSERT INTO users VALUES(?,?,?,?,1)', (secrets.token_hex(12), login, encoded, invite['role']))
+            new_id=secrets.token_hex(12)
+            db.execute('INSERT INTO users VALUES(?,?,?,?,1)', (new_id, login, encoded, invite['role']))
             db.execute('UPDATE invitations SET used=1 WHERE token=?', (digest(token),))
-            db.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), login, 'Прийнято запрошення: '+invite['role'], '[]'))
+            db.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), login, 'Прийнято запрошення: '+invite['role'], json.dumps([dict(actor_id=new_id)])))
         return self.login(login, password, ip)
 
 
@@ -357,7 +365,7 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if not path.startswith('/api/'):
                 if self.command != 'GET': raise Problem('Метод не підтримується.', 405)
-                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js', 'schedule-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
+                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js','shifts-ui.js','shifts-model.js', 'schedule-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
                 if path not in names: raise Problem('Сторінку не знайдено.', 404)
                 file = STATIC/names[path]
                 if path=='/config.js' and self.server.cloud_api:
@@ -381,6 +389,14 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/redeem' and self.command == 'POST': return self.reply(200, db.redeem(payload.get('invitation'), payload.get('login'), payload.get('password'), self.client_address[0]))
             token = self.headers.get('Authorization', '').removeprefix('Bearer ')
             user = self.cloud_identity(token) if self.server.cloud_api else db.identity(token)
+            if path=='/api/daily-backups':
+                if user['role']!='owner':raise Problem('Доступ адміністратора.',403)
+                try:
+                    if self.command=='POST':return self.reply(200,local_backups.create(db))
+                    archive_id=parse_qs(urlsplit(self.path).query).get('id',[''])[0]
+                    if archive_id:return self.reply(200,local_backups.read(db,archive_id))
+                    return self.reply(200,dict(storage='local',encryption='Windows DPAPI',supported=sys.platform=='win32',schedule='Щодня під час роботи локального сервера (Windows DPAPI)',retention=30,rows=local_backups.rows(db)))
+                except (ValueError,OSError) as exc:raise Problem(str(exc))
             if path.startswith('/api/chat/'):
                 from chat import chat_route,ChatError
                 try:return self.reply(200,chat_route(db,user,path,parse_qs(urlsplit(self.path).query),self.command=='POST',payload))
@@ -392,7 +408,7 @@ class Handler(BaseHTTPRequestHandler):
                         try: prefs=validate_preferences(payload)
                         except ValueError as e: raise Problem(str(e))
                         conn.execute('INSERT INTO preferences VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data',(user['id'],json.dumps(prefs)))
-                        conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(now(),user['login'],'Особисті налаштування','[]'))
+                        conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(now(),user['login'],'Особисті налаштування',json.dumps([dict(actor_id=user['id'])])))
                     row=conn.execute('SELECT data FROM preferences WHERE user_id=?',(user['id'],)).fetchone()
                     session=conn.execute('SELECT expires FROM sessions WHERE token=?',(digest(token),)).fetchone()
                 from datetime import datetime,timezone
@@ -404,7 +420,7 @@ class Handler(BaseHTTPRequestHandler):
                 with db.connect() as conn:
                     if conn.execute('SELECT id FROM users WHERE login=?',(login,)).fetchone():raise Problem('Логін уже існує.')
                     conn.execute('INSERT INTO users VALUES(?,?,?,?,1)',(secrets.token_hex(12),login,password_hash(payload.get('password')),payload['role']))
-                    conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(now(),user['login'],'Створено обліковий запис: '+login,'[]'))
+                    conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(now(),user['login'],'Створено обліковий запис: '+login,json.dumps([dict(actor_id=user['id'])])))
                 return self.reply(200,{'ok':True})
             if path=='/api/full-backup' and self.command=='GET':
                 if user['role']!='owner':raise Problem('Доступ адміністратора.',403)
@@ -438,7 +454,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not row or not password_ok(payload.get('old'), row['password']): raise Problem('Поточний пароль неправильний.', 403)
                     conn.execute('UPDATE users SET password=? WHERE id=?', (password_hash(payload.get('password')), user['id']))
                     conn.execute('DELETE FROM sessions WHERE user_id=? AND token!=?', (user['id'], digest(token)))
-                    conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), user['login'], 'Змінено пароль', '[]'))
+                    conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), user['login'], 'Змінено пароль', json.dumps([dict(actor_id=user['id'])])))
                 return self.reply(200, {'ok': True})
             if path == '/api/invite' and self.command == 'POST': return self.reply(200, db.invite(user, payload.get('role')))
             if path == '/api/backups' and self.command == 'GET':
@@ -471,7 +487,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not target or target['role'] == 'owner': raise Problem('Користувача не знайдено або він адміністратор.')
                     conn.execute('UPDATE users SET active=? WHERE id=?', (int(bool(payload.get('active'))), payload.get('id')))
                     conn.execute('DELETE FROM sessions WHERE user_id=?', (payload.get('id'),))
-                    conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), user['login'], 'Зміна доступу: '+target['login'], json.dumps([{'before': not bool(payload.get('active')), 'after': bool(payload.get('active'))}])))
+                    conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)', (now(), user['login'], 'Зміна доступу: '+target['login'], json.dumps([{'actor_id':user['id'],'before': not bool(payload.get('active')), 'after': bool(payload.get('active'))}])))
                 return self.reply(200, {'ok': True})
             raise Problem('Маршрут не знайдено.', 404)
         except Problem as error:
@@ -539,9 +555,13 @@ def main():
     print(f'Кадровий простір {VERSION}: {url}', flush=True)
     if server.updater.supported and server.updater.snapshot()['enabled']: server.updater.check_async()
     if args.open or bool(getattr(sys,'frozen',False)): threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    backup_stop=threading.Event()
+    if not online:local_backups.start(db,backup_stop)
     try: server.serve_forever()
     except KeyboardInterrupt: pass
-    finally: server.server_close()
+    finally:
+        backup_stop.set()
+        server.server_close()
 
 
 if __name__ == '__main__': main()

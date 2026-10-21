@@ -30,7 +30,7 @@ class StateTests(unittest.TestCase):
         self.assertEqual(len(validate_state(self.state)['events']),2)
 
     def test_rejects_bad_dates_and_unknown_kinds(self):
-        for e in [event(start='2026-02-30'),event(kind='На позиції'),event(start='2026-01-04',end='2026-01-02')]:
+        for e in [event(start='2026-02-30'),event(kind='Невідомий тип'),event(start='2026-01-04',end='2026-01-02')]:
             with self.subTest(e=e),self.assertRaises(Problem):
                 validate_state(dict(self.state,events=[e]))
 

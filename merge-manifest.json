@@ -1,0 +1,200 @@
+[
+  {
+    "path": ".github/workflows/checks.yml",
+    "before_e": "9712c6fa7edf2e7bf535e6ed2337f62bfa5247b4d191e71f2178ff26d35ee554",
+    "before_c": "df278ca99f7ac53c5fc7ee87d400921dd759fc6d378bb46e4566ef10f57e450e",
+    "after": "9712c6fa7edf2e7bf535e6ed2337f62bfa5247b4d191e71f2178ff26d35ee554"
+  },
+  {
+    "path": ".github/workflows/release.yml",
+    "before_e": "440269a64130316042d32da4c7e7fb3098b780452fa70f0eeea9415149ddcabb",
+    "before_c": "eeb42c023f5dc35931598d6fd80324304a0e6441007f9cf98d7cba35c9784ce3",
+    "after": "440269a64130316042d32da4c7e7fb3098b780452fa70f0eeea9415149ddcabb"
+  },
+  {
+    "path": "chat.py",
+    "before_e": null,
+    "before_c": "5a6481c40c059044db3ba3cc494784ad7d170197125e83a318da6df0054b4b89",
+    "after": "5a6481c40c059044db3ba3cc494784ad7d170197125e83a318da6df0054b4b89"
+  },
+  {
+    "path": "cloudflare/backup.js",
+    "before_e": "2c86ea12609b097b6f5958ba28f10ca58302f2a1add287aa50077a521d85569a",
+    "before_c": "ca905297b78e78f6c1bbec0e860472d8fa15636b4bbb161720d8cc4b6298dac6",
+    "after": "8c01d3a701856d70fb5a5ef79c11efb0ecde953d360e82f756298e4515c9f306"
+  },
+  {
+    "path": "cloudflare/chat.js",
+    "before_e": null,
+    "before_c": "cd5197de3387ec060f52a8531396c2b4accc179d36c794aba7abec0d68f4024f",
+    "after": "cd5197de3387ec060f52a8531396c2b4accc179d36c794aba7abec0d68f4024f"
+  },
+  {
+    "path": "cloudflare/migrations/0004_admin_chat.sql",
+    "before_e": null,
+    "before_c": "76468f5ba5e2a5182cf56962ef1d39505a6d6a63997078c2f4f0b5cde99c2c8f",
+    "after": "76468f5ba5e2a5182cf56962ef1d39505a6d6a63997078c2f4f0b5cde99c2c8f"
+  },
+  {
+    "path": "cloudflare/scheduled-backup.js",
+    "before_e": "2e601fb197ef1ba3b7f0c4ef9532f3c4ab0a9bf76773d04abbc30400243dd726",
+    "before_c": "e619a33d0d7b85a09fda2b654a18eb145a4c5bce080e95cedad2a91a52a6bf62",
+    "after": "2e601fb197ef1ba3b7f0c4ef9532f3c4ab0a9bf76773d04abbc30400243dd726"
+  },
+  {
+    "path": "cloudflare/schema.sql",
+    "before_e": "0d6b644e82e98c138250bdb7d3c061bd5d4d340d3c5e7b586f71d69842cba539",
+    "before_c": "5366715a47e6805209fb31e9c2e8b43e9abe8260157b6dd7cba74056a1329f18",
+    "after": "5366715a47e6805209fb31e9c2e8b43e9abe8260157b6dd7cba74056a1329f18"
+  },
+  {
+    "path": "cloudflare/worker.js",
+    "before_e": "1b658482cf9d08d5201b44da088ac5fa492dca77f567358584286169fd3ce81b",
+    "before_c": "e83d2f3401a056fe8048f4ff3692d1b9c798df8e940376c1c3a5cc39f728f906",
+    "after": "0cb781a9c8d22c00f555845e346109255080f51e700bd1a02fcdaa27c0a8c63c"
+  },
+  {
+    "path": "decrypt-external-backup.mjs",
+    "before_e": "e88183ee1625e6a348ac5705a2e511e1042806a0972326e02e2ceb35dd635b91",
+    "before_c": null,
+    "after": "e88183ee1625e6a348ac5705a2e511e1042806a0972326e02e2ceb35dd635b91"
+  },
+  {
+    "path": "Dockerfile",
+    "before_e": "8b0b6c733a5314cc229a5f0b59c21b2acc379d6849ebd4d01784542bc30141e1",
+    "before_c": "ef55bf12864a889f296840621579c02029084a12b98ea200d6e52f8316d76eb6",
+    "after": "001a591e3058689cfcb6b4d1d6deedad9f15785d53ebf6925cf1b1d20ef4635b"
+  },
+  {
+    "path": "fullbackup.py",
+    "before_e": "8661f8921c751d9e13eccb71f69e15811a76f8515774d0bebd31f98aef5cb4ba",
+    "before_c": "deec8758b27ef5d0f30f2aa81a55328f69109c452d05c3b14020ba9574fa63d4",
+    "after": "70bf41fce54b6b4d990065db59bd92aaaa7dcf746b9caef5e6f32f41be5bfd4b"
+  },
+  {
+    "path": "local_backups.py",
+    "before_e": "410144b64ab9415c93a58cb655581e8205f107c59d7818470d94abd662e39fd3",
+    "before_c": null,
+    "after": "410144b64ab9415c93a58cb655581e8205f107c59d7818470d94abd662e39fd3"
+  },
+  {
+    "path": "MERGE-REPORT.md",
+    "before_e": null,
+    "before_c": null,
+    "after": "3d37ab30cfc28b906892c8970668bb228bf9e6be067a307b1e0c3a4064abf8ca"
+  },
+  {
+    "path": "migrate_personnel.py",
+    "before_e": "dcaedc7dee410c44ce558d0554418372e26eb6a719e8b378f794637e3496337c",
+    "before_c": "dcaedc7dee410c44ce558d0554418372e26eb6a719e8b378f794637e3496337c",
+    "after": "e96718b140a8a01aa74c6b2f7a0e449d3b141e3669fda234912af5ca4af4f856"
+  },
+  {
+    "path": "package.json",
+    "before_e": "6504aacd88df282e6bf679bca50ef29b3eb81fd24c2f2ad15ee26add051d06ad",
+    "before_c": "67772350802ca6a9b48f4212bb790ff5fa3cfc544681924e9b6954a5171593c4",
+    "after": "6504aacd88df282e6bf679bca50ef29b3eb81fd24c2f2ad15ee26add051d06ad"
+  },
+  {
+    "path": "README.md",
+    "before_e": "dfb04f5e5ea0c78eff26c04d5ffc81c11d5299a87ba8683370a9161843a64936",
+    "before_c": "f4b02586d72bfff0466ea00907df39d57b40e59cadb37553359aa7eda71028d5",
+    "after": "f549a9c32fd16577a89d61a00f84b55df0d8f72e00359b10da532974829bdb79"
+  },
+  {
+    "path": "server.py",
+    "before_e": "5cdeeb98e84c6d7cc0c77f2bf07baf7a2db82ea158521cc7f9edd828eb157e4c",
+    "before_c": "8bcc74ed14dc6b8a900ea5837c7e721b7e96c090d9bc6b8504bd61724e506d7f",
+    "after": "518e4409b4697a366dcce2868861adb33293a91633e05d9f3734c073b926461f"
+  },
+  {
+    "path": "shifts.py",
+    "before_e": "b7ddf1f381f2ae1c0904ba8c8581426a85fa20f57b817cbb980e4fa3ce64cd0d",
+    "before_c": null,
+    "after": "b7ddf1f381f2ae1c0904ba8c8581426a85fa20f57b817cbb980e4fa3ce64cd0d"
+  },
+  {
+    "path": "tests/shifts.test.mjs",
+    "before_e": "246b82e23ab9e629f8f96b63f1255fea41cf0f2106a17d9155b7ef40ed05c5a7",
+    "before_c": null,
+    "after": "246b82e23ab9e629f8f96b63f1255fea41cf0f2106a17d9155b7ef40ed05c5a7"
+  },
+  {
+    "path": "tests/test_server.py",
+    "before_e": "8fc24c15e235ed91d7eb9a7363a20287e9deb4795d9fe40d285778dab7e1b3f4",
+    "before_c": "f06c2d62f7b90c7bda940f6da4f15b1b86497be4c0d3de6c42e457ec928b3cca",
+    "after": "116e5157a73099df0cad729fe875206991f62ee9fa00d841d9704dcde7f38a0e"
+  },
+  {
+    "path": "tests/test_shifts.py",
+    "before_e": "2ea4c8f6314c157f58c01c923b690388aa0daee3f996eeded8b77a294535914c",
+    "before_c": null,
+    "after": "cf173679137364616da01986a68ef8df3a2640494b723810e3c254961adc9a05"
+  },
+  {
+    "path": "tests/ui-smoke.cjs",
+    "before_e": "dfc0945d25fdd0b4403876528f5c0dd11c5d4dd287b25c5593f4bce566707292",
+    "before_c": null,
+    "after": "de4d1274f96ccd4d0b5b98cce21fa64f9b78c7df9875afc80bf673284f8743c1"
+  },
+  {
+    "path": "tests/worker.test.mjs",
+    "before_e": "c1210715ad7ad31c8eef916181b84dfd246be04a202971ba24c3ba46ad50fe55",
+    "before_c": "55a78d048f28cc8d9fa503b0cd28465d30e9f84669ff4a6c7eb0aa5fbb0ea6eb",
+    "after": "b4df6bdbd24c52e9d298c3ad63d69790ce4a0d128c7c3ec837619fd145308fd0"
+  },
+  {
+    "path": "UPGRADE-2.4.0.md",
+    "before_e": "55d945c8247cbd02d47f8fac10c41b7d5f9337f42ec9c6074c6ad8ccc1920e94",
+    "before_c": null,
+    "after": "8a801aad84b5fc3f5ed5367d848774e850bfbdaa954fd30504e43e0456a8516e"
+  },
+  {
+    "path": "web/app.js",
+    "before_e": "b55e0935ce0cba98cd24c9805c7df145e7c4ecd9d51c59df2dfdce12fcbaa192",
+    "before_c": "634632d6137d727ef04e501ada90014da68c67ebc2f511159789d10bdc7859f0",
+    "after": "52aa243ef0ec6f55a6ac065e8a63960560bd64f7f6fa32fb56771e7f00115a2d"
+  },
+  {
+    "path": "web/chat-ui.js",
+    "before_e": null,
+    "before_c": "98af916178e2f62f80259961169f3fa66acd3f5c4951370e4eb040e0e4bb801d",
+    "after": "98af916178e2f62f80259961169f3fa66acd3f5c4951370e4eb040e0e4bb801d"
+  },
+  {
+    "path": "web/excel-styles.js",
+    "before_e": "d51e17177c1a95a061656a89de7f73fa82d7d563f0bd18c1c1a2391453404d41",
+    "before_c": "007ea3da97323eb38044e8d0d78d3bd287e4c87738852b339e55e7673e611dad",
+    "after": "d51e17177c1a95a061656a89de7f73fa82d7d563f0bd18c1c1a2391453404d41"
+  },
+  {
+    "path": "web/index.html",
+    "before_e": "1f4e3cc4f9b5daf64bffeb973460e52b61029f28157003411316c5edf9760aaa",
+    "before_c": "92f786ba15dbf2a8088c5099868265f02422383236052b518f2044d86af078a0",
+    "after": "1f4e3cc4f9b5daf64bffeb973460e52b61029f28157003411316c5edf9760aaa"
+  },
+  {
+    "path": "web/shifts-model.js",
+    "before_e": "7c8da9434f68c2941d0be7ad01f8306f1653b1ca5ad3932e7a86a33ddefe2110",
+    "before_c": null,
+    "after": "7c8da9434f68c2941d0be7ad01f8306f1653b1ca5ad3932e7a86a33ddefe2110"
+  },
+  {
+    "path": "web/shifts-ui.js",
+    "before_e": "02aff5cf8e167b41239e4572471dc3af1c6f940f8fa0455c20650905d6a377d8",
+    "before_c": null,
+    "after": "02aff5cf8e167b41239e4572471dc3af1c6f940f8fa0455c20650905d6a377d8"
+  },
+  {
+    "path": "web/style.css",
+    "before_e": "d90d3515e79ee6faa70b4902728001a4e6f868590fdb8e43e65351acf3df874c",
+    "before_c": "a76b32e7d3f7a372ff8959cc4d17f15477b5f6130c5689c747c56452d9daba31",
+    "after": "1c406613bc374546fd341fc46ad37e4c1d2a0e8e6698bafc73dc291dffe43efa"
+  },
+  {
+    "path": "upgrade-manifest.json",
+    "before_e": "98646ddc16fd79faf1965746a6e6690487e670cd80d0ffb8dff91b2aa19f2252",
+    "before_c": null,
+    "after": "ea868a24d05aaacdfb47510da9788d47130e49375ba13bebfa3a8d9f5c464e8e"
+  }
+]

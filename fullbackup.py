@@ -43,5 +43,5 @@ def restore_full(database,user,body,validate):
                 if name=='workspace':row.update(revision=max(current,row['revision'])+1,data=json.dumps(state,ensure_ascii=False))
                 db.execute('INSERT INTO '+name+' ('+','.join(columns)+') VALUES('+','.join('?' for _ in columns)+')',tuple(row[c] for c in columns))
         db.execute('DELETE FROM sessions');db.execute('DELETE FROM invitations')
-        db.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(datetime.now(timezone.utc).isoformat(),user['login'],'Відновлено повну базу','[]'))
+        db.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(datetime.now(timezone.utc).isoformat(),user['login'],'Відновлено повну базу',json.dumps([dict(actor_id=user['id'])])))
     return {'ok':True,'sign_in_again':True}

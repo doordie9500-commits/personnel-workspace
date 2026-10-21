@@ -1,4 +1,4 @@
-"""Explicit offline export of personnel + administrative absences, never positions/tasks."""
+"""Explicit offline export of personnel + administrative absences, never work assignments/tasks."""
 import argparse
 import json
 import sqlite3

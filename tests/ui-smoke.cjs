@@ -1,0 +1,34 @@
+// Optional browser integration check. Set PLAYWRIGHT_MODULE and PYTHON if needed.
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const {spawn}=require('node:child_process');
+const path=require('node:path');
+const assert=require('node:assert/strict');
+(async()=>{
+ const root=path.resolve(__dirname,'..');
+ const {DatabaseSync}=require('node:sqlite'),fs=require('node:fs');
+ const db=new DatabaseSync(':memory:');db.exec(fs.readFileSync(path.join(root,'cloudflare/schema.sql'),'utf8'));
+ function prepared(sql,args=[]){return {bind(...values){return prepared(sql,values);},async first(){return db.prepare(sql).get(...args)||null;},async all(){return {results:db.prepare(sql).all(...args)};},async run(){if(/^SELECT/i.test(sql.trim()))return {results:db.prepare(sql).all(...args),meta:{changes:0}};return {meta:{changes:Number(db.prepare(sql).run(...args).changes)}};}};}
+ const DB={prepare:sql=>prepared(sql),async batch(items){db.exec('BEGIN');try{const out=[];for(const item of items)out.push(await item.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
+ const worker=(await import(require('node:url').pathToFileURL(path.join(root,'cloudflare/worker.js')))).default,env={DB,ADMIN_LOGIN:'demo',ADMIN_PASSWORD:'DemoOnlyPassword123!'};
+ const login=await worker.fetch(new Request('http://127.0.0.1:8766/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:'demo',password:env.ADMIN_PASSWORD})}),env);const account=await login.json();
+ const state={title:'UI test',people:[{id:'p1',name:'Тест Працівник 1',group:'Група 1'},{id:'p2',name:'Тест Працівник 2',group:'Група 1'}],groups:['Група 1'],roles:[],events:[]};
+ const seeded=await worker.fetch(new Request('http://127.0.0.1:8766/api/state',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+account.token},body:JSON.stringify({state,revision:0})}),env);assert.equal(seeded.status,200);
+ let browser;
+ try{
+  browser=await chromium.launch({headless:true,args:['--no-proxy-server'],...(process.env.BROWSER_EXE?{executablePath:process.env.BROWSER_EXE}:{})});const page=await browser.newPage();page.setDefaultTimeout(10000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('http://127.0.0.1:8766/**',async route=>{const req=route.request(),url=new URL(req.url());if(url.pathname.startsWith('/api/')){const res=await worker.fetch(new Request(req.url(),{method:req.method(),headers:req.headers(),...(req.method()==='POST'?{body:req.postData()}: {})}),env);await route.fulfill({status:res.status,headers:Object.fromEntries(res.headers),body:await res.text()});}else{const file=path.join(root,'web',url.pathname==='/'?'index.html':url.pathname.slice(1));const type=file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'text/plain';await route.fulfill({status:200,contentType:type,body:fs.readFileSync(file)});}});
+
+  console.log('Opening demo');await page.goto('http://127.0.0.1:8766',{timeout:15000});await page.getByLabel('Логін',{exact:true}).fill('demo');await page.getByLabel('Пароль',{exact:true}).fill('DemoOnlyPassword123!');await page.getByRole('button',{name:'Увійти',exact:true}).click();
+  await page.getByRole('button',{name:'Склади',exact:false}).first().click();await page.getByRole('button',{name:'+ Додати склад',exact:true}).click();await page.getByLabel('Назва *',{exact:true}).fill('Тестовий склад UI');await page.getByRole('button',{name:'Зберегти',exact:true}).click();
+  await page.getByRole('button',{name:'Вихід на роботу',exact:true}).first().click();await page.locator('dialog label.field').filter({hasText:/^Група/}).locator('select').selectOption({label:'Група 1'});await page.getByRole('button',{name:'Підтвердити',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('dialog').open);
+  await page.getByRole('button',{name:'Зміни на складах',exact:false}).first().click();await page.getByRole('heading',{name:'Зміни на складах',exact:true}).waitFor();assert.ok(await page.getByText('Тестовий склад UI',{exact:true}).count());
+  await page.screenshot({path:path.join(root,'ui-desktop.png'),fullPage:true});await page.reload();await page.getByRole('heading',{name:'Зміни на складах',exact:true}).waitFor().catch(async()=>{await page.getByRole('button',{name:'Зміни на складах',exact:false}).first().click();});
+  await page.locator('.nav[data-nav=work]').click();await page.getByRole('button',{name:'+ Додати період',exact:true}).click();await page.getByLabel('Тип кадрової події',{exact:true}).selectOption('Робота');await page.getByRole('button',{name:'Зберегти',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('dialog').open);assert.equal(JSON.parse(db.prepare('SELECT data FROM workspace WHERE id=1').get().data).events[0].kind,'Робота');
+  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(root,'ui-mobile.png'),fullPage:true});
+  await page.locator('.mobile-nav').selectOption('chat');await page.getByRole('textbox',{name:'Повідомлення',exact:true}).fill('Перевірка об’єднаного чату');await page.getByRole('button',{name:'Надіслати',exact:true}).click();await page.getByText('Перевірка об’єднаного чату',{exact:true}).waitFor();await page.getByRole('button',{name:'☾ Нічна',exact:true}).click();await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark');await page.screenshot({path:path.join(root,'ui-merged-chat-night.png'),fullPage:true});
+  assert.deepEqual(errors,[]);console.log('Browser smoke passed: login, warehouse, group assignment, calendar, reload, personnel event save, mobile, chat, night theme; no page errors.');
+ }finally{if(browser)await browser.close();db.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+
+

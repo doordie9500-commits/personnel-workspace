@@ -6,6 +6,35 @@ import worker,{validate,passwordHash} from '../cloudflare/worker.js';
 import {createScheduledBackup,decryptScheduledBackup} from '../cloudflare/scheduled-backup.js';
 import {DEFAULT_PREFERENCES,validatePreferences} from '../web/preferences.js';
 
+test('Warehouse API persists snapshots, rejects overlaps, archives and stale/viewer writes',async()=>{
+ const DB=d1(),env={DB,ADMIN_PASSWORD:'SecureTestPassword123!'};
+ try{
+  const owner=(await call(env,'login',{body:{login:'admin',password:env.ADMIN_PASSWORD}})).data.token;
+  const state={title:'Зміни',groups:['Група 1'],roles:[],events:[],people:[{id:'p',name:'Тест Працівник',group:'Група 1'}],warehouses:[{id:'w',name:'Склад 1',archived:false}],shifts:[{id:'s',warehouse_id:'w',group:'Група 1',start:'2026-10-21T05:00:00.000Z',end:'2026-10-21T17:00:00.000Z',status:'Заплановано',members:[{id:'p',name:'spoof'}],responsible_id:'p',created_by:'spoof'}]};
+  let saved=await call(env,'state',{token:owner,body:{state,revision:0}});assert.equal(saved.status,200);assert.equal(saved.data.state.shifts[0].members[0].name,'Тест Працівник');assert.notEqual(saved.data.state.shifts[0].created_by,'spoof');
+  const overlap=structuredClone(saved.data.state);overlap.shifts.push({...overlap.shifts[0],id:'two'});assert.equal((await call(env,'state',{token:owner,body:{state:overlap,revision:1}})).status,400);
+  const archived=structuredClone(saved.data.state);archived.warehouses[0].archived=true;assert.equal((await call(env,'state',{token:owner,body:{state:archived,revision:1}})).status,400);
+  assert.equal((await call(env,'state',{token:owner,body:{state:saved.data.state,revision:0}})).status,409);
+  await call(env,'register',{token:owner,body:{login:'readonly',password:'ReadonlyPassword123!',role:'viewer'}});const viewer=(await call(env,'login',{body:{login:'readonly',password:'ReadonlyPassword123!'}})).data.token;assert.equal((await call(env,'state',{token:viewer,body:{state:saved.data.state,revision:1}})).status,403);
+  const finished=structuredClone(saved.data.state);finished.shifts[0].status='Завершили зміну';finished.shifts[0].actual_end='2026-10-21T18:00:00.000Z';saved=await call(env,'state',{token:owner,body:{state:finished,revision:1}});assert.equal(saved.status,200);
+  const removed=structuredClone(saved.data.state);removed.people=[];removed.groups=[];saved=await call(env,'state',{token:owner,body:{state:removed,revision:2}});assert.equal(saved.status,200);assert.equal(saved.data.state.shifts[0].members[0].name,'Тест Працівник');
+  const backup=(await call(env,'full-backup',{token:owner})).data;assert.equal(JSON.parse(backup.tables.workspace[0].data).shifts.length,1);
+  const audit=(await call(env,'audit',{token:owner})).data;assert.ok(audit.some(r=>r.details.some(d=>d.table==='shifts'&&d.actor_id)));
+ }finally{DB.close();}
+});
+
+test('External backups send only ciphertext and reject public repositories; R2 archives decrypt',async()=>{
+ const DB=d1(),objects=new Map(),env={DB,BACKUP_KEY:btoa('a'.repeat(32)),BACKUP_BUCKET:{async put(key,data){objects.set(key,data);},async get(key){return objects.has(key)?{async text(){return objects.get(key);}}:null;}}};
+ const originalFetch=globalThis.fetch;
+ try{
+  const result=await createScheduledBackup(env);assert.equal(result.external.r2,true);const [key,value]=[...objects.entries()][0];assert.ok(!value.includes('password'));const packet=await decryptScheduledBackup({id:result.id,data:JSON.stringify({format:'personnel-r2-reference-v1',key})},env.BACKUP_KEY,env.BACKUP_BUCKET);assert.equal(packet.engine,'cloudflare-d1');
+  env.BACKUP_GITHUB_REPO='test/private';env.BACKUP_GITHUB_TOKEN='test-only';let writes=0;
+  globalThis.fetch=async(url,options)=>{if(options.method==='PUT'){writes++;const body=JSON.parse(options.body),archive=JSON.parse(Buffer.from(body.content,'base64').toString());assert.ok(archive.data.ciphertext);assert.equal(archive.data.format,'personnel-scheduled-v1');return new Response('{}',{status:201});}return new Response(JSON.stringify({private:true}));};
+  assert.equal((await createScheduledBackup(env)).external.github,true);assert.equal(writes,1);
+  globalThis.fetch=async()=>new Response(JSON.stringify({private:false}));await assert.rejects(()=>createScheduledBackup(env),/приватний/);
+ }finally{globalThis.fetch=originalFetch;DB.close();}
+});
+
 test('Personal preferences are isolated; viewer cannot change accounts or download full archives',async()=>{
   const DB=d1(),env={DB,ADMIN_PASSWORD:'SecureTestPassword123!'};
   try{
@@ -44,7 +73,7 @@ async function call(env,path,{body,token,origin}={}){const response=await worker
 test('Worker validates dates, duplicate identities and admin-only event types',()=>{
   assert.equal(validate(state()).people.length,1);
   for(const p of [state().people[0],{...state().people[0],id:'p2',name:' Інша людина '}]){const s=state();s.people.push(p);assert.throws(()=>validate(s));}
-  const s=state();s.events=[{id:'e1',person_id:'p1',kind:'На позиції',start:'2026-10-21',end:'2026-10-22'}];assert.throws(()=>validate(s));s.events[0].kind='ВЛК';s.events[0].start='2026-02-30';assert.throws(()=>validate(s));
+  const s=state();s.events=[{id:'e1',person_id:'p1',kind:'Невідомий тип',start:'2026-10-21',end:'2026-10-22'}];assert.throws(()=>validate(s));s.events[0].kind='ВЛК';s.events[0].start='2026-02-30';assert.throws(()=>validate(s));
 });
 test('Worker end-to-end: first admin, revision conflict, journal, restore and invite rights',async()=>{
   const DB=d1(),env={DB,ADMIN_LOGIN:'admin',ADMIN_PASSWORD:'SecureTestPassword123!',ALLOWED_ORIGINS:'https://frontend.example'};

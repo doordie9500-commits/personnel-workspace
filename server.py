@@ -182,6 +182,9 @@ class Database:
         with self.connect() as db:
             db.executescript('''
             PRAGMA journal_mode=WAL;
+            CREATE TABLE IF NOT EXISTS chat_members(user_id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS chat_reads(user_id TEXT PRIMARY KEY,last_id INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,author_id TEXT NOT NULL,author_login TEXT NOT NULL,author_name TEXT NOT NULL,body TEXT NOT NULL,client_id TEXT NOT NULL,UNIQUE(author_id,client_id));
             CREATE TABLE IF NOT EXISTS preferences(user_id TEXT PRIMARY KEY,data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, login TEXT UNIQUE NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
             CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires REAL NOT NULL);
@@ -354,7 +357,7 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if not path.startswith('/api/'):
                 if self.command != 'GET': raise Problem('Метод не підтримується.', 405)
-                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js', 'schedule-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
+                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js', 'schedule-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
                 if path not in names: raise Problem('Сторінку не знайдено.', 404)
                 file = STATIC/names[path]
                 if path=='/config.js' and self.server.cloud_api:
@@ -378,6 +381,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/redeem' and self.command == 'POST': return self.reply(200, db.redeem(payload.get('invitation'), payload.get('login'), payload.get('password'), self.client_address[0]))
             token = self.headers.get('Authorization', '').removeprefix('Bearer ')
             user = self.cloud_identity(token) if self.server.cloud_api else db.identity(token)
+            if path.startswith('/api/chat/'):
+                from chat import chat_route,ChatError
+                try:return self.reply(200,chat_route(db,user,path,parse_qs(urlsplit(self.path).query),self.command=='POST',payload))
+                except ChatError as error:raise Problem(str(error),error.status)
             if path=='/api/profile':
                 from preferences import DEFAULTS,validate_preferences
                 with db.connect() as conn:
@@ -446,7 +453,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200, rows)
             if path == '/api/users' and self.command == 'GET':
                 if user['role'] != 'owner': raise Problem('Доступ адміністратора.', 403)
-                with db.connect() as conn: rows = [dict(r) for r in conn.execute('SELECT id,login,role,active FROM users')]
+                with db.connect() as conn: rows = [dict(r) for r in conn.execute("SELECT u.id,u.login,u.role,u.active,CASE WHEN u.role='owner' OR m.user_id IS NOT NULL THEN 1 ELSE 0 END chat_access FROM users u LEFT JOIN chat_members m ON m.user_id=u.id")]
                 return self.reply(200, rows)
             if path=='/api/user-role' and self.command=='POST':
                 if user['role']!='owner' or payload.get('id')==user['id'] or payload.get('role') not in ('editor','viewer'):raise Problem('Недозволена зміна ролі.',403)

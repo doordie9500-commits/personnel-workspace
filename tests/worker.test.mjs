@@ -87,3 +87,30 @@ test('General class grade integrity and administrative board validation',()=>{
   const data=state();data.people[0].category='Новобранець';data.classes=[{id:'c1',day:'2026-10-21',title:'Документообіг',teacher:'Тест',notes:''}];data.grades=[{id:'g1',class_id:'c1',person_id:'p1',score:75,notes:''}];data.admin_tasks=[{id:'t1',title:'Оновити документи',due:'2026-10-22',owner:'Адміністратор',status:'Заплановано',notes:''}];
   assert.equal(validate(data).grades[0].score,75);assert.equal(validate(data).people[0].category,'Новобранець');data.grades[0].class_id='missing';assert.throws(()=>validate(data));
 });
+
+
+test('Chat enforces membership, keeps authors, avoids duplicate sends, tracks unread and includes backup history',async()=>{
+ const DB=d1(),env={DB,ADMIN_PASSWORD:'SecureTestPassword123!'};
+ try{
+  const owner=(await call(env,'login',{body:{login:'admin',password:env.ADMIN_PASSWORD}})).data.token;
+  await call(env,'register',{token:owner,body:{login:'colleague',password:'ColleaguePassword123!',role:'editor'}});
+  const colleague=(await call(env,'login',{body:{login:'colleague',password:'ColleaguePassword123!'}})).data.token;
+  assert.equal((await call(env,'chat/status',{token:colleague})).data.allowed,false);
+  assert.equal((await call(env,'chat/messages',{token:colleague})).status,403);
+  const accounts=(await call(env,'users',{token:owner})).data,target=accounts.find(u=>u.login==='colleague');
+  assert.equal((await call(env,'chat/members',{token:colleague,body:{id:target.id,allowed:true}})).status,403);
+  assert.equal((await call(env,'chat/members',{token:owner,body:{id:target.id,allowed:true}})).status,200);
+  const payload={body:'<script>alert(1)</script> Тест',client_id:'test-message-001',author_id:'fake'};
+  const sent=await call(env,'chat/messages',{token:owner,body:payload});assert.equal(sent.status,200);assert.equal(sent.data.author_login,'admin');assert.notEqual(sent.data.author_id,'fake');
+  assert.equal((await call(env,'chat/messages',{token:owner,body:payload})).data.id,sent.data.id);
+  assert.equal((await call(env,'chat/messages',{token:owner,body:{body:' ',client_id:'test-message-002'}})).status,400);
+  assert.equal((await call(env,'chat/status',{token:colleague})).data.unread,1);
+  assert.equal((await call(env,'chat/read',{token:colleague,body:{last_id:sent.data.id+1}})).status,400);
+  assert.equal((await call(env,'chat/read',{token:colleague,body:{last_id:sent.data.id}})).status,200);
+  assert.equal((await call(env,'chat/status',{token:colleague})).data.unread,0);
+  assert.equal((await call(env,'chat/messages?after='+sent.data.id,{token:owner})).data.messages.length,0);
+  assert.equal((await call(env,'full-backup',{token:owner})).data.tables.chat_messages.length,1);
+  await call(env,'chat/members',{token:owner,body:{id:target.id,allowed:false}});
+  assert.equal((await call(env,'chat/messages',{token:colleague})).status,403);
+ }finally{DB.close();}
+});

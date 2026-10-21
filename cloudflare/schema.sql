@@ -12,3 +12,7 @@ INSERT OR IGNORE INTO workspace VALUES(1,0,'{"people":[],"events":[],"groups":[]
 CREATE TABLE IF NOT EXISTS preferences(user_id TEXT PRIMARY KEY,data TEXT NOT NULL);
 
 CREATE TABLE IF NOT EXISTS scheduled_backups(id TEXT PRIMARY KEY,created TEXT NOT NULL,data TEXT NOT NULL);
+
+CREATE TABLE IF NOT EXISTS chat_members(user_id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS chat_reads(user_id TEXT PRIMARY KEY,last_id INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,author_id TEXT NOT NULL,author_login TEXT NOT NULL,author_name TEXT NOT NULL,body TEXT NOT NULL,client_id TEXT NOT NULL,UNIQUE(author_id,client_id));

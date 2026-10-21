@@ -3,7 +3,7 @@ ENV PYTHONUNBUFFERED=1 HOST=0.0.0.0 PORT=8765 DATABASE_PATH=/data/personnel.sqli
 WORKDIR /app
 COPY server.py /app/server.py
 COPY updater.py /app/updater.py
-COPY admin_extensions.py fullbackup.py preferences.py /app/
+COPY admin_extensions.py fullbackup.py preferences.py chat.py /app/
 COPY web /app/web
 RUN useradd --uid 10001 --create-home personnel && mkdir /data && chown personnel:personnel /data
 USER personnel

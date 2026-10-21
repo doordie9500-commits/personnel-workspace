@@ -184,6 +184,24 @@ class HTTPTests(DatabaseTests):
         self.assertEqual(self.call('/api/profile',token=reader)[0],401)
         self.assertEqual(len(self.call('/api/full-backup',token=self.token)[1]['tables']['preferences']),2)
 
+    def test_chat_membership_deduplication_and_unread(self):
+        self.call('/api/register',dict(login='colleague',password='ColleaguePassword123!',role='editor'),self.token)
+        _,logged=self.call('/api/login',dict(login='colleague',password='ColleaguePassword123!'));colleague=logged['token']
+        self.assertFalse(self.call('/api/chat/status',token=colleague)[1]['allowed'])
+        self.assertEqual(self.call('/api/chat/messages',token=colleague)[0],403)
+        _,accounts=self.call('/api/users',token=self.token);target=next(u for u in accounts if u['login']=='colleague')
+        self.assertEqual(self.call('/api/chat/members',dict(id=target['id'],allowed=True),colleague)[0],403)
+        self.assertEqual(self.call('/api/chat/members',dict(id=target['id'],allowed=True),self.token)[0],200)
+        payload=dict(body='<script>Тест</script>',client_id='test-message-001',author_id='fake')
+        status,sent=self.call('/api/chat/messages',payload,self.token);self.assertEqual(status,200);self.assertNotEqual(sent['author_id'],'fake')
+        self.assertEqual(self.call('/api/chat/messages',payload,self.token)[1]['id'],sent['id'])
+        self.assertEqual(self.call('/api/chat/status',token=colleague)[1]['unread'],1)
+        self.assertEqual(self.call('/api/chat/read',dict(last_id=sent['id']),colleague)[0],200)
+        self.assertEqual(self.call('/api/chat/status',token=colleague)[1]['unread'],0)
+        self.assertEqual(len(self.call('/api/full-backup',token=self.token)[1]['tables']['chat_messages']),1)
+        self.call('/api/chat/members',dict(id=target['id'],allowed=False),self.token)
+        self.assertEqual(self.call('/api/chat/messages',token=colleague)[0],403)
+
     def test_http_auth_cors_and_api(self):
         self.assertEqual(self.call('/api/state')[0],401)
         self.assertEqual(self.call('/api/state',token=self.token,origin='https://evil.example')[0],403)

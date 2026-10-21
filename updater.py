@@ -93,7 +93,10 @@ $deadline = (Get-Date).AddHours(24)
 while ((Get-Process -Id $oldProcessId -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {{ Start-Sleep -Seconds 2 }}
 if (Get-Process -Id $oldProcessId -ErrorAction SilentlyContinue) {{ exit 1 }}
 Start-Sleep -Seconds 2
-if ((Get-FileHash -LiteralPath $stagedFile -Algorithm SHA256).Hash.ToLower() -ne $checksum) {{ exit 2 }}
+$hasher = [System.Security.Cryptography.SHA256]::Create()
+try {{ $actualHash = [BitConverter]::ToString($hasher.ComputeHash([System.IO.File]::ReadAllBytes($stagedFile))).Replace('-', '').ToLower() }}
+finally {{ $hasher.Dispose() }}
+if ($actualHash -ne $checksum) {{ exit 2 }}
 $backupFile = $targetFile + '.previous'
 try {{
   if (Test-Path -LiteralPath $backupFile) {{ Remove-Item -LiteralPath $backupFile -Force }}
@@ -104,7 +107,8 @@ try {{
 }} catch {{ $_ | Out-File -LiteralPath {powershell_literal(staged.parent/'update-error.txt')} }}
 '''
     script.write_text(source,encoding='utf-8-sig')
-    return subprocess.Popen(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',str(script)],creationflags=subprocess.CREATE_NO_WINDOW|subprocess.DETACHED_PROCESS,close_fds=True)
+    with (staged.parent/'installer-log.txt').open('ab') as log:
+        return subprocess.Popen(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',str(script)],stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,creationflags=subprocess.CREATE_NO_WINDOW,close_fds=True)
 
 
 class UpdateManager:

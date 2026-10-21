@@ -1,0 +1,36 @@
+name: Publish Windows update
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m unittest discover -s tests
+      - run: node --test tests/excel.test.mjs tests/worker.test.mjs
+      - run: python -m pip install pyinstaller==6.16.0
+      - run: python -m PyInstaller --onefile --name PersonnelWeb --add-data "web;web" server.py
+      - name: Create update manifest
+        shell: python
+        run: |
+          import hashlib, json, os
+          from pathlib import Path
+          from server import VERSION
+          tag = os.environ['GITHUB_REF_NAME']
+          assert tag == 'v'+VERSION, 'Release tag must match server.VERSION'
+          file = Path('dist/PersonnelWeb.exe')
+          manifest = {'version': VERSION, 'filename': file.name, 'sha256': hashlib.sha256(file.read_bytes()).hexdigest(), 'size': file.stat().st_size}
+          Path('dist/update-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+      - name: Publish verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME dist/PersonnelWeb.exe dist/update-manifest.json --title "Кадровий простір $env:GITHUB_REF_NAME" --notes "Кадрова вебверсія для PC: авторизація, адмінка, поденні календарі, Excel, резервні копії та автоматичні оновлення EXE з перевіркою SHA-256."

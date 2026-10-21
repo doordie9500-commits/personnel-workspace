@@ -16,13 +16,18 @@ from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
+import urllib.request
+import urllib.error
+from updater import UpdateManager
 
-VERSION = '2.0.0'
+VERSION = '2.1.0'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
 STATIC = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'web'
 MAX_BODY = 2_000_000
+ONLINE_API = 'https://personnel-workspace-api.kadrovyi-prostir.workers.dev'
+ONLINE_SITE = 'https://doordie9500-commits.github.io/personnel-workspace/'
 
 
 class Problem(Exception):
@@ -334,6 +339,9 @@ class Handler(BaseHTTPRequestHandler):
                 names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
                 if path not in names: raise Problem('Сторінку не знайдено.', 404)
                 file = STATIC/names[path]
+                if path=='/config.js' and self.server.cloud_api:
+                    config='window.PERSONNEL_CONFIG = '+json.dumps({'API_URL':'','SHARE_URL':ONLINE_SITE})+';'
+                    return self.reply(200,body=config.encode(),mime='text/javascript; charset=utf-8')
                 mime = {'html': 'text/html', 'js': 'text/javascript', 'css': 'text/css', 'svg': 'image/svg+xml', 'webmanifest': 'application/manifest+json'}[file.suffix[1:]]+'; charset=utf-8'
                 return self.reply(200, body=file.read_bytes(), mime=mime)
             if not self.origin_allowed(): raise Problem('Цей сайт не має доступу до API.', 403)
@@ -344,14 +352,29 @@ class Handler(BaseHTTPRequestHandler):
                 if self.headers.get_content_type() != 'application/json': raise Problem('Очікується JSON.', 415)
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict): raise Problem('Очікується об’єкт JSON.')
+            if self.server.cloud_api and path!='/api/update':
+                return self.proxy_cloud(payload if self.command=='POST' else None)
             db = self.server.database
             if path == '/api/health' and self.command == 'GET': return self.reply(200, {'ok': True, 'version': VERSION})
             if path == '/api/login' and self.command == 'POST': return self.reply(200, db.login(payload.get('login'), payload.get('password'), self.client_address[0]))
             if path == '/api/redeem' and self.command == 'POST': return self.reply(200, db.redeem(payload.get('invitation'), payload.get('login'), payload.get('password'), self.client_address[0]))
             token = self.headers.get('Authorization', '').removeprefix('Bearer ')
-            user = db.identity(token)
+            user = self.cloud_identity(token) if self.server.cloud_api else db.identity(token)
             if path == '/api/state' and self.command == 'GET': return self.reply(200, dict(db.read(), user=user))
             if path == '/api/state' and self.command == 'POST': return self.reply(200, db.commit(user, payload.get('state'), payload.get('revision'), payload.get('action', 'Оновлення')))
+            if path == '/api/update':
+                if user['role'] != 'owner': raise Problem('Оновлення програми доступне адміністратору.', 403)
+                updater = self.server.updater
+                if self.command == 'GET': return self.reply(200, updater.snapshot())
+                if 'enabled' in payload:
+                    if not isinstance(payload['enabled'], bool): raise Problem('Неправильне налаштування оновлень.')
+                    updater.settings(payload['enabled'])
+                action=payload.get('action')
+                if action=='check': updater.check_async()
+                elif action=='install':
+                    if updater.snapshot()['state']!='ready': raise Problem('Оновлення ще не готове. Спочатку перевірте нову версію.')
+                    threading.Timer(1.0, self.server.shutdown).start()
+                return self.reply(200, updater.snapshot())
             if path == '/api/logout' and self.command == 'POST':
                 with db.connect() as conn: conn.execute('DELETE FROM sessions WHERE token=?', (digest(token),))
                 return self.reply(200, {'ok': True})
@@ -397,10 +420,31 @@ class Handler(BaseHTTPRequestHandler):
             traceback.print_exc()
             self.reply(500, {'error': 'Помилка сервера. Перевірте журнал сервера.'})
 
+    def cloud_identity(self, token):
+        request=urllib.request.Request(self.server.cloud_api+'/api/state',headers={'Authorization':'Bearer '+token,'User-Agent':'Mozilla/5.0 PersonnelWorkspace-PC/'+VERSION})
+        try:
+            with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)['user']
+        except urllib.error.HTTPError as error:
+            status=error.code;error.close();raise Problem('Увійдіть в онлайн-базу.',status)
+        except (OSError,ValueError):raise Problem('Немає зв’язку з онлайн-базою.',503)
 
-def make_server(database, host='127.0.0.1', port=8765, origins=()):
+    def proxy_cloud(self,payload):
+        # Fixed upstream; no user-selected proxy destinations or stored cloud passwords.
+        request=urllib.request.Request(self.server.cloud_api+self.path,data=json.dumps(payload,ensure_ascii=False).encode() if payload is not None else None,headers={'Authorization':self.headers.get('Authorization',''),'Content-Type':'application/json','User-Agent':'Mozilla/5.0 PersonnelWorkspace-PC/'+VERSION},method=self.command)
+        try:
+            with urllib.request.urlopen(request,timeout=30) as response:
+                return self.reply(response.status,body=response.read(MAX_BODY+1))
+        except urllib.error.HTTPError as error:
+            try:return self.reply(error.code,body=error.read(MAX_BODY+1))
+            finally:error.close()
+        except OSError:raise Problem('Онлайн-база недоступна. Перевірте інтернет; локальні дані не підміняють спільну базу.',503)
+
+
+def make_server(database, host='127.0.0.1', port=8765, origins=(),cloud_api=None):
     server = ThreadingHTTPServer((host, port), Handler)
     server.database = database
+    server.cloud_api = cloud_api
+    server.updater = UpdateManager(VERSION, database.path.parent/'updates')
     server.allowed_origins = set(origins) | {f'http://127.0.0.1:{server.server_port}', f'http://localhost:{server.server_port}'}
     return server
 
@@ -412,10 +456,14 @@ def main():
     parser.add_argument('--database', default=os.environ.get('DATABASE_PATH', str(Path.home()/'PersonnelWeb'/'personnel.sqlite3')))
     parser.add_argument('--init-admin', action='store_true')
     parser.add_argument('--open', action='store_true')
+    mode=parser.add_mutually_exclusive_group()
+    mode.add_argument('--online',action='store_true',help='Use the shared hosted database')
+    mode.add_argument('--local',action='store_true',help='Use a separate local database')
     args = parser.parse_args()
+    online=(args.online or bool(getattr(sys,'frozen',False))) and not args.local
     db = Database(args.database)
     with db.connect() as conn: needs_admin = not conn.execute('SELECT count(*) FROM users').fetchone()[0]
-    if args.init_admin or needs_admin:
+    if not online and (args.init_admin or needs_admin):
         login = os.environ.get('ADMIN_LOGIN', 'admin')
         password = os.environ.get('ADMIN_PASSWORD')
         if not password:
@@ -423,10 +471,11 @@ def main():
             print('Початковий логін:', login, '\nПочатковий пароль (збережіть):', password, flush=True)
         try: db.bootstrap(login, password)
         except Problem as error: print(error)
-    server = make_server(db, args.host, args.port, filter(None, os.environ.get('ALLOWED_ORIGINS', '').split(',')))
+    server = make_server(db, args.host, args.port, filter(None, os.environ.get('ALLOWED_ORIGINS', '').split(',')), ONLINE_API if online else None)
     url = f'http://127.0.0.1:{server.server_port}'
     print(f'Кадровий простір {VERSION}: {url}', flush=True)
-    if args.open: threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    if server.updater.supported and server.updater.snapshot()['enabled']: server.updater.check_async()
+    if args.open or bool(getattr(sys,'frozen',False)): threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try: server.serve_forever()
     except KeyboardInterrupt: pass
     finally: server.server_close()

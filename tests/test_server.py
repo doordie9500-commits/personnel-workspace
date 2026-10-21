@@ -191,5 +191,20 @@ class HTTPTests(DatabaseTests):
         self.assertEqual(self.call('/api/state',token=editor['token'])[0],401)
         self.assertEqual(self.call('/api/users',{'id':self.user['id'],'active':False},self.token)[0],403)
 
+    def test_pc_proxy_uses_shared_identity_and_state(self):
+        remote=make_server(self.db,port=0)
+        thread=threading.Thread(target=remote.serve_forever,daemon=True);thread.start()
+        self.server.cloud_api=f'http://127.0.0.1:{remote.server_port}'
+        try:
+            self.assertEqual(self.call('/api/state')[0],401)
+            status,result=self.call('/api/state',token=self.token)
+            self.assertEqual(status,200);self.assertEqual(result['user']['id'],self.user['id'])
+            status,result=self.call('/api/update',token=self.token)
+            self.assertEqual(status,200);self.assertFalse(result['supported'])
+            with urllib.request.urlopen(self.url+'/config.js') as response:
+                self.assertIn('SHARE_URL',response.read().decode())
+        finally:
+            remote.shutdown();remote.server_close();thread.join()
+
 
 if __name__=='__main__':unittest.main()

@@ -1,0 +1,40 @@
+name: Publish frontend to GitHub Pages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [web/**, .github/workflows/pages.yml]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure API endpoint
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          url = os.environ.get('API_URL', '').rstrip('/')
+          if url and not url.startswith('https://'):
+              raise SystemExit('API_URL must be HTTPS, or empty for the read-only fictional demo.')
+          Path('web/config.js').write_text('window.PERSONNEL_CONFIG = '+json.dumps({'API_URL': url})+';\n')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

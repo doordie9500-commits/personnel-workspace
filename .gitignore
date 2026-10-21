@@ -1,0 +1,11 @@
+data/
+*.sqlite3*
+*.db
+*.log
+__pycache__/
+.env
+build/
+dist/
+*.spec
+*.json.backup
+.venv/

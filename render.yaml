@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: personnel-web
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "8765"
+      - key: DATABASE_PATH
+        value: /data/personnel.sqlite3
+      - key: ADMIN_LOGIN
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+    disk:
+      name: personnel-data
+      mountPath: /data
+      sizeGB: 1

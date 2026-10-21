@@ -3,7 +3,7 @@ import secrets
 from contextlib import closing
 from datetime import datetime,timezone
 
-TABLES={'users':('id','login','password','role','active'),'workspace':('id','revision','data'),'audit':('id','created','actor','action','details'),'backups':('id','created','actor','revision','data')}
+TABLES={'preferences':('user_id','data'),'users':('id','login','password','role','active'),'workspace':('id','revision','data'),'audit':('id','created','actor','action','details'),'backups':('id','created','actor','revision','data')}
 
 
 def full_backup(database):
@@ -16,6 +16,7 @@ def full_backup(database):
 def restore_full(database,user,body,validate):
     packet=body.get('backup',{})
     if body.get('confirm')!='ВІДНОВИТИ БАЗУ' or packet.get('format')!='personnel-full-v1' or packet.get('engine')!='python-sqlite':raise ValueError('Потрібна повна копія Python-бази та підтвердження.')
+    packet.get('tables',{}).setdefault('preferences',[])
     for name,columns in TABLES.items():
         rows=packet.get('tables',{}).get(name)
         if not isinstance(rows,list) or len(rows)>100000:raise ValueError('Некоректна таблиця копії.')

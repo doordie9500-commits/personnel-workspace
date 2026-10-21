@@ -1,5 +1,7 @@
+import {createScheduledBackup,decryptScheduledBackup} from './scheduled-backup.js';
 // Free-tier API for GitHub Pages. No secrets or personnel records in this file.
 import {extensions,CATEGORIES,EXTRA_TABLES} from '../web/model.js';
+import {DEFAULT_PREFERENCES,validatePreferences} from '../web/preferences.js';
 import {fullBackup,restoreFull} from './backup.js';
 const KINDS=['Робота','Відпустка','КЗВ','Лікарня','Лікарняний','ВЛК','Реабілітація'];
 const enc=new TextEncoder(),uuid=()=>crypto.randomUUID(),ts=()=>Math.floor(Date.now()/1000),now=()=>new Date().toISOString();
@@ -32,7 +34,7 @@ function randomToken(){return hex(crypto.getRandomValues(new Uint8Array(32)));}
 const stmt=(db,sql,...args)=>db.prepare(sql).bind(...args);
 async function limit(db,key){const time=ts();await stmt(db,'INSERT INTO attempts(key,count,reset) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN reset>? THEN count+1 ELSE 1 END,reset=CASE WHEN reset>? THEN reset ELSE ? END',key,time+900,time,time,time+900).run();const row=await stmt(db,'SELECT count FROM attempts WHERE key=?',key).first();if(row.count>15)throw new Problem('Забагато спроб. Спробуйте через 15 хвилин.',429);}
 async function identity(request,db){const token=request.headers.get('Authorization')?.replace(/^Bearer /,'')||'';const user=await stmt(db,'SELECT u.id,u.login,u.role FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.active=1',await hash(token),ts()).first();if(!user)throw new Problem('Увійдіть у систему.',401);return {user,token};}
-async function read(db){const row=await stmt(db,'SELECT * FROM workspace WHERE id=1').first();if(!row)throw new Problem('Спочатку застосуйте cloudflare/schema.sql у базі D1.',503);return {revision:row.revision,state:JSON.parse(row.data),today:today(),version:'2.2.2'};}
+async function read(db){const row=await stmt(db,'SELECT * FROM workspace WHERE id=1').first();if(!row)throw new Problem('Спочатку застосуйте cloudflare/schema.sql у базі D1.',503);return {revision:row.revision,state:JSON.parse(row.data),today:today(),version:'2.3.0'};}
 async function login(db,env,body,ip){
   const name=String(body.login||'').trim().toLocaleLowerCase('uk');await limit(db,'ip:'+ip);await limit(db,'login:'+name);
   let user=await stmt(db,'SELECT * FROM users WHERE login=? AND active=1',name).first();
@@ -62,15 +64,28 @@ async function commit(db,user,body,restore=false){
 async function route(request,env){
   const db=env.DB;if(!db)throw new Problem('Не налаштовано прив’язку D1 DB.',503);const url=new URL(request.url),path=url.pathname,post=request.method==='POST';let body={};
   if(post){if(!request.headers.get('Content-Type')?.startsWith('application/json'))throw new Problem('Очікується JSON.',415);if(Number(request.headers.get('Content-Length'))>(path==='/api/full-restore'?20000000:2000000))throw new Problem('Запит завеликий.',413);const raw=await request.text();if(raw.length>(path==='/api/full-restore'?20000000:2000000))throw new Problem('Запит завеликий.',413);try{body=JSON.parse(raw);}catch{throw new Problem('Некоректний JSON.');}if(!body||typeof body!=='object'||Array.isArray(body))throw new Problem('Очікується об’єкт JSON.');}
-  if(path==='/api/health'&&!post)return {ok:true,version:'2.2.2'};
+  if(path==='/api/health'&&!post)return {ok:true,version:'2.3.0'};
   const ip=request.headers.get('CF-Connecting-IP')||'unknown';
   if(path==='/api/login'&&post)return login(db,env,body,ip);
   if(path==='/api/redeem'&&post){await limit(db,'invite:'+ip);const token=await hash(String(body.invitation||'')),name=text(body.login,100,true).toLocaleLowerCase('uk'),encoded=await passwordHash(body.password),invite=await stmt(db,'SELECT * FROM invitations WHERE token=? AND used=0 AND expires>?',token,ts()).first();if(!invite)throw new Problem('Запрошення недійсне або прострочене.',403);if(await stmt(db,'SELECT id FROM users WHERE login=?',name).first())throw new Problem('Цей логін уже існує.');const id=uuid();try{const result=await db.batch([stmt(db,'INSERT INTO users(id,login,password,role,active) SELECT ?,?,?,role,1 FROM invitations WHERE token=? AND used=0 AND expires>?',id,name,encoded,token,ts()),stmt(db,'UPDATE invitations SET used=1 WHERE token=? AND EXISTS(SELECT 1 FROM users WHERE id=?)',token,id),stmt(db,'INSERT INTO audit(created,actor,action,details) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM users WHERE id=?)',now(),name,'Прийнято запрошення','[]',id)]);if(!result[0].meta.changes)throw new Problem('Запрошення вже використане.',403);}catch(e){if(e instanceof Problem)throw e;throw new Problem('Не вдалося прийняти запрошення. Перевірте логін.');}return login(db,env,body,ip);}
   const {user,token}=await identity(request,db);
+  if(path==='/api/profile'){
+    if(post){let preferences;try{preferences=validatePreferences(body);}catch(e){throw new Problem(e.message);}
+      await db.batch([stmt(db,'INSERT INTO preferences(user_id,data) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data',user.id,JSON.stringify(preferences)),stmt(db,'INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',now(),user.login,'Особисті налаштування','[]')]);}
+    const row=await stmt(db,'SELECT data FROM preferences WHERE user_id=?',user.id).first(),session=await stmt(db,'SELECT expires FROM sessions WHERE token=?',await hash(token)).first();
+    return {user,preferences:row?JSON.parse(row.data):DEFAULT_PREFERENCES,session:{started_at:new Date((session.expires-8*3600)*1000).toISOString(),expires_at:new Date(session.expires*1000).toISOString(),active:true}};
+  }
+
   if(path==='/api/register'&&post){if(user.role!=='owner'||!['editor','viewer'].includes(body.role))throw new Problem('Доступ адміністратора.',403);const name=text(body.login,100,true).toLocaleLowerCase('uk');if(await stmt(db,'SELECT id FROM users WHERE login=?',name).first())throw new Problem('Цей логін уже існує.');await db.batch([stmt(db,'INSERT INTO users VALUES(?,?,?,?,1)',uuid(),name,await passwordHash(body.password),body.role),stmt(db,'INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',now(),user.login,'Створено обліковий запис: '+name,'[]')]);return {ok:true};}
+  if(path==='/api/daily-backups'){
+    if(user.role!=='owner')throw new Problem('Доступ адміністратора.',403);
+    if(post){try{return await createScheduledBackup(env);}catch{throw new Problem('Не вдалося створити щоденний резерв. Перевірте BACKUP_KEY, розмір бази та журнал Worker.',503);}}
+    const id=url.searchParams.get('id');if(id){const row=await stmt(db,'SELECT id,data FROM scheduled_backups WHERE id=?',id).first();if(!row)throw new Problem('Копію не знайдено.',404);try{return await decryptScheduledBackup(row,env.BACKUP_KEY);}catch{throw new Problem('Не вдалося перевірити цілісність резерву або ключ змінився.',409);}}
+    return {supported:true,schedule:'Щодня о 03:00 UTC',retention:30,rows:(await stmt(db,'SELECT id,created FROM scheduled_backups ORDER BY created DESC LIMIT 30').all()).results};
+  }
   if(path==='/api/full-backup'&&!post){if(user.role!=='owner')throw new Problem('Доступ адміністратора.',403);return fullBackup(db);}
   if(path==='/api/full-restore'&&post){if(user.role!=='owner')throw new Problem('Доступ адміністратора.',403);try{return await restoreFull(db,user,body,validate);}catch(e){throw new Problem(e.message);}}
-  if(path==='/api/update'&&!post){if(user.role!=='owner')throw new Problem('Доступ адміністратора.',403);return {current:'2.2.2',supported:false,enabled:false,state:'web',message:'Вебсайт оновлюється автоматично через Cloudflare. Автооновлення EXE доступне у Windows-програмі 2.2.2 або новішій.'};}
+  if(path==='/api/update'&&!post){if(user.role!=='owner')throw new Problem('Доступ адміністратора.',403);return {current:'2.3.0',supported:false,enabled:false,state:'web',message:'Вебсайт оновлюється автоматично через Cloudflare. Автооновлення EXE доступне у Windows-програмі 2.3.0 або новішій.'};}
   if(path==='/api/state'&&!post)return {...await read(db),user};
   if(path==='/api/state'&&post)return commit(db,user,body);
   if(path==='/api/restore'&&post)return commit(db,user,body,true);
@@ -80,10 +95,11 @@ async function route(request,env){
   if(path==='/api/backups'&&!post){if(user.role!=='owner')throw new Problem('Доступ адміністратора.',403);return (await stmt(db,'SELECT id,created,actor,revision FROM backups ORDER BY rowid DESC LIMIT 100').all()).results;}
   if(path==='/api/invite'&&post){if(user.role!=='owner'||!['viewer','editor'].includes(body.role))throw new Problem('Доступ адміністратора.',403);const invitation=randomToken();await db.batch([stmt(db,'INSERT INTO invitations VALUES(?,?,?,0)',await hash(invitation),body.role,ts()+48*3600),stmt(db,'INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',now(),user.login,'Створено запрошення: '+body.role,'[]')]);return {invitation,hours:48};}
   if(path==='/api/users'&&!post){if(user.role!=='owner')throw new Problem('Доступ адміністратора.',403);return (await stmt(db,'SELECT id,login,role,active FROM users').all()).results;}
+  if(path==='/api/user-role'&&post){if(user.role!=='owner'||body.id===user.id||!['editor','viewer'].includes(body.role))throw new Problem('Недозволена зміна ролі.',403);const target=await stmt(db,'SELECT login,role FROM users WHERE id=?',body.id).first();if(!target||target.role==='owner')throw new Problem('Не можна змінити власника.',403);await db.batch([stmt(db,'UPDATE users SET role=? WHERE id=?',body.role,body.id),stmt(db,'DELETE FROM sessions WHERE user_id=?',body.id),stmt(db,'INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',now(),user.login,'Змінено роль користувача',JSON.stringify([{actor_id:user.id,target_id:body.id,before:target.role,after:body.role}]))]);return {ok:true};}
   if(path==='/api/users'&&post){if(user.role!=='owner'||body.id===user.id)throw new Problem('Не можна змінити власний доступ.',403);const target=await stmt(db,'SELECT login,role FROM users WHERE id=?',body.id).first();if(!target||target.role==='owner')throw new Problem('Користувача не знайдено.');await db.batch([stmt(db,'UPDATE users SET active=? WHERE id=?',body.active?1:0,body.id),stmt(db,'DELETE FROM sessions WHERE user_id=?',body.id),stmt(db,'INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',now(),user.login,'Змінено доступ: '+target.login,JSON.stringify([{after:!!body.active}]))]);return {ok:true};}
   throw new Problem('Маршрут не знайдено.',404);
 }
-export default {async fetch(request,env,ctx){
+export default {async scheduled(event,env,ctx){ctx.waitUntil(createScheduledBackup(env));},async fetch(request,env,ctx){
   if(!new URL(request.url).pathname.startsWith('/api/'))return env.ASSETS?env.ASSETS.fetch(request):new Response('Not found',{status:404});
   const origin=request.headers.get('Origin'),allowed=(env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()),headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
   const permitted=!origin||allowed.includes(origin)||origin===new URL(request.url).origin;

@@ -22,7 +22,7 @@ from updater import UpdateManager
 from admin_extensions import CATEGORIES,EXTRA_TABLES,validate_extensions
 from fullbackup import full_backup,restore_full
 
-VERSION = '2.2.2'
+VERSION = '2.3.0'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
@@ -182,6 +182,7 @@ class Database:
         with self.connect() as db:
             db.executescript('''
             PRAGMA journal_mode=WAL;
+            CREATE TABLE IF NOT EXISTS preferences(user_id TEXT PRIMARY KEY,data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, login TEXT UNIQUE NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
             CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS invitations(token TEXT PRIMARY KEY,role TEXT NOT NULL,expires REAL NOT NULL,used INTEGER NOT NULL DEFAULT 0);
@@ -353,7 +354,7 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if not path.startswith('/api/'):
                 if self.command != 'GET': raise Problem('Метод не підтримується.', 405)
-                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','schedule-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
+                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js', 'schedule-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
                 if path not in names: raise Problem('Сторінку не знайдено.', 404)
                 file = STATIC/names[path]
                 if path=='/config.js' and self.server.cloud_api:
@@ -377,6 +378,19 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/redeem' and self.command == 'POST': return self.reply(200, db.redeem(payload.get('invitation'), payload.get('login'), payload.get('password'), self.client_address[0]))
             token = self.headers.get('Authorization', '').removeprefix('Bearer ')
             user = self.cloud_identity(token) if self.server.cloud_api else db.identity(token)
+            if path=='/api/profile':
+                from preferences import DEFAULTS,validate_preferences
+                with db.connect() as conn:
+                    if self.command=='POST':
+                        try: prefs=validate_preferences(payload)
+                        except ValueError as e: raise Problem(str(e))
+                        conn.execute('INSERT INTO preferences VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data',(user['id'],json.dumps(prefs)))
+                        conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(now(),user['login'],'Особисті налаштування','[]'))
+                    row=conn.execute('SELECT data FROM preferences WHERE user_id=?',(user['id'],)).fetchone()
+                    session=conn.execute('SELECT expires FROM sessions WHERE token=?',(digest(token),)).fetchone()
+                from datetime import datetime,timezone
+                stamp=lambda value:datetime.fromtimestamp(value,timezone.utc).isoformat()
+                return self.reply(200,dict(user=user,preferences=json.loads(row['data']) if row else DEFAULTS,session=dict(started_at=stamp(session['expires']-8*3600),expires_at=stamp(session['expires']),active=True)))
             if path=='/api/register' and self.command=='POST':
                 if user['role']!='owner' or payload.get('role') not in ('viewer','editor'):raise Problem('Доступ адміністратора.',403)
                 login=text(payload.get('login'),100,True).casefold()
@@ -434,6 +448,15 @@ class Handler(BaseHTTPRequestHandler):
                 if user['role'] != 'owner': raise Problem('Доступ адміністратора.', 403)
                 with db.connect() as conn: rows = [dict(r) for r in conn.execute('SELECT id,login,role,active FROM users')]
                 return self.reply(200, rows)
+            if path=='/api/user-role' and self.command=='POST':
+                if user['role']!='owner' or payload.get('id')==user['id'] or payload.get('role') not in ('editor','viewer'):raise Problem('Недозволена зміна ролі.',403)
+                with db.connect() as conn:
+                    target=conn.execute('SELECT role FROM users WHERE id=?',(payload.get('id'),)).fetchone()
+                    if not target or target['role']=='owner':raise Problem('Не можна змінити власника.',403)
+                    conn.execute('UPDATE users SET role=? WHERE id=?',(payload['role'],payload['id']))
+                    conn.execute('DELETE FROM sessions WHERE user_id=?',(payload['id'],))
+                    conn.execute('INSERT INTO audit(created,actor,action,details) VALUES(?,?,?,?)',(now(),user['login'],'Змінено роль користувача',json.dumps([dict(actor_id=user['id'],target_id=payload['id'],before=target['role'],after=payload['role'])])))
+                return self.reply(200,{'ok':True})
             if path == '/api/users' and self.command == 'POST':
                 if user['role'] != 'owner' or payload.get('id') == user['id']: raise Problem('Не можна вимкнути власний доступ.', 403)
                 with db.connect() as conn:

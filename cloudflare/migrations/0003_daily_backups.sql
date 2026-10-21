@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS scheduled_backups(id TEXT PRIMARY KEY,created TEXT NOT NULL,data TEXT NOT NULL);

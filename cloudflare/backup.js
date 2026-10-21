@@ -1,8 +1,9 @@
-const TABLES={users:['id','login','password','role','active'],workspace:['id','revision','data'],audit:['id','created','actor','action','details'],backups:['id','created','actor','revision','data']};
+const TABLES={preferences:['user_id','data'],users:['id','login','password','role','active'],workspace:['id','revision','data'],audit:['id','created','actor','action','details'],backups:['id','created','actor','revision','data']};
 const prepare=(db,sql,...args)=>db.prepare(sql).bind(...args);
 export async function fullBackup(db){const tables={},names=Object.keys(TABLES),batch=await db.batch(names.map(name=>db.prepare('SELECT * FROM '+name)));for(let i=0;i<names.length;i++)tables[names[i]]=batch[i].results;return {format:'personnel-full-v1',engine:'cloudflare-d1',exported_at:new Date().toISOString(),tables};}
 export async function restoreFull(db,user,body,validate){
   const packet=body.backup;if(body.confirm!=='ВІДНОВИТИ БАЗУ'||packet?.format!=='personnel-full-v1'||packet.engine!=='cloudflare-d1')throw Error('Підтвердьте відновлення повної копії Cloudflare.');
+  if(packet.tables&&!packet.tables.preferences)packet.tables.preferences=[];
   for(const [table,columns] of Object.entries(TABLES)){const rows=packet.tables?.[table];if(!Array.isArray(rows)||rows.length>100000)throw Error('Некоректна таблиця резервної копії.');for(const row of rows)for(const col of columns)if(!['string','number'].includes(typeof row[col]))throw Error('Некоректні поля резервної копії.');}
   const owner=packet.tables.users.find(u=>u.id===user.id&&u.role==='owner'&&u.active===1);if(!owner)throw Error('Копія має містити ваш обліковий запис адміністратора.');
   for(const u of packet.tables.users)if(!['owner','editor','viewer'].includes(u.role)||!/^[a-f0-9]{32}:[a-f0-9]{64}$/i.test(u.password)||!u.login.trim())throw Error('Некоректні облікові записи.');

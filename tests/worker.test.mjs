@@ -3,6 +3,39 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import worker,{validate,passwordHash} from '../cloudflare/worker.js';
+import {createScheduledBackup,decryptScheduledBackup} from '../cloudflare/scheduled-backup.js';
+import {DEFAULT_PREFERENCES,validatePreferences} from '../web/preferences.js';
+
+test('Personal preferences are isolated; viewer cannot change accounts or download full archives',async()=>{
+  const DB=d1(),env={DB,ADMIN_PASSWORD:'SecureTestPassword123!'};
+  try{
+    const owner=(await call(env,'login',{body:{login:'admin',password:env.ADMIN_PASSWORD}})).data.token;
+    await call(env,'register',{token:owner,body:{login:'reader',password:'ReaderPassword123!',role:'viewer'}});
+    let reader=(await call(env,'login',{body:{login:'reader',password:'ReaderPassword123!'}})).data.token;
+    const p=await call(env,'profile',{token:reader,body:{theme:'dark',display_name:'Тест'}});assert.equal(p.status,200);assert.equal(p.data.preferences.theme,'dark');assert.equal(p.data.session.active,true);
+    assert.equal((await call(env,'profile',{token:owner})).data.preferences.theme,'system');
+    assert.equal((await call(env,'profile',{token:reader,body:{theme:'wrong'}})).status,400);
+    assert.equal((await call(env,'daily-backups',{token:reader})).status,403);
+    const accounts=(await call(env,'users',{token:owner})).data,target=accounts.find(a=>a.login==='reader');
+    assert.equal((await call(env,'user-role',{token:reader,body:{id:target.id,role:'editor'}})).status,403);
+    assert.equal((await call(env,'user-role',{token:owner,body:{id:target.id,role:'owner'}})).status,403);
+    assert.equal((await call(env,'user-role',{token:owner,body:{id:target.id,role:'editor'}})).status,200);
+    assert.equal((await call(env,'profile',{token:reader})).status,401);
+    assert.equal((await call(env,'full-backup',{token:owner})).data.tables.preferences.length,1);
+    assert.throws(()=>validatePreferences({notifications:'false'}));assert.equal(validatePreferences({theme:'light'}).language,DEFAULT_PREFERENCES.language);
+  }finally{DB.close();}
+});
+
+test('Daily full backups encrypt accounts, verify integrity, retain 30 and reject wrong key',async()=>{
+  const DB=d1(),env={DB,BACKUP_KEY:btoa('a'.repeat(32))};
+  try{
+    for(let i=0;i<31;i++)await createScheduledBackup(env);
+    const rows=(await DB.prepare('SELECT * FROM scheduled_backups').all()).results;assert.equal(rows.length,30);
+    const packet=await decryptScheduledBackup(rows[0],env.BACKUP_KEY);assert.equal(packet.format,'personnel-full-v1');assert.ok(packet.tables.preferences);
+    assert.ok(!rows[0].data.includes('workspace'));await assert.rejects(()=>decryptScheduledBackup(rows[0],btoa('b'.repeat(32))));
+    await assert.rejects(()=>decryptScheduledBackup({...rows[0],id:'tampered-id'},env.BACKUP_KEY));
+  }finally{DB.close();}
+});
 
 function d1(){const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../cloudflare/schema.sql',import.meta.url),'utf8'));function prepared(sql,args=[]){return {bind(...values){return prepared(sql,values);},async first(){return db.prepare(sql).get(...args)||null;},async all(){return {results:db.prepare(sql).all(...args)};},async run(){if(/^SELECT/i.test(sql.trim()))return {results:db.prepare(sql).all(...args),meta:{changes:0}};const info=db.prepare(sql).run(...args);return {meta:{changes:Number(info.changes)}};}};}return {prepare:sql=>prepared(sql),async batch(statements){db.exec('BEGIN IMMEDIATE');try{const result=[];for(const s of statements)result.push(await s.run());db.exec('COMMIT');return result;}catch(e){db.exec('ROLLBACK');throw e;}},close:()=>db.close()};}
 function state(){return {title:'Тест',people:[{id:'p1',name:'Тестова людина',callsign:'Тест',rank:'',role:'',unit:'',phone:'',group:'',notes:'',service_since:'2020-01-01',archived:false}],events:[],groups:[],roles:[]};}

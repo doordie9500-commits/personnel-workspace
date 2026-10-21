@@ -8,3 +8,7 @@ CREATE TABLE IF NOT EXISTS backups(id TEXT PRIMARY KEY,created TEXT NOT NULL,act
 CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY,count INTEGER NOT NULL,reset INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS recovery(id TEXT PRIMARY KEY,created TEXT NOT NULL,data TEXT NOT NULL);
 INSERT OR IGNORE INTO workspace VALUES(1,0,'{"people":[],"events":[],"groups":[],"roles":["Мех. Вод.","Ком. Гар.","Навідник","номер обслуги #1","номер обслуги #2"],"title":"Кадровий простір"}');
+
+CREATE TABLE IF NOT EXISTS preferences(user_id TEXT PRIMARY KEY,data TEXT NOT NULL);
+
+CREATE TABLE IF NOT EXISTS scheduled_backups(id TEXT PRIMARY KEY,created TEXT NOT NULL,data TEXT NOT NULL);

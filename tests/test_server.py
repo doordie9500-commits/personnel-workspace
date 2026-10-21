@@ -170,6 +170,20 @@ class HTTPTests(DatabaseTests):
             try:return e.code,json.loads(e.read())
             finally:e.close()
 
+    def test_personal_preferences_and_role_permissions(self):
+        status,data=self.call('/api/profile',dict(theme='dark',display_name='Тест'),self.token)
+        self.assertEqual(status,200);self.assertEqual(data['preferences']['theme'],'dark');self.assertTrue(data['session']['active'])
+        self.assertEqual(self.call('/api/profile',dict(theme='invalid'),self.token)[0],400)
+        self.call('/api/register',dict(login='reader',password='ReaderPassword123!',role='viewer'),self.token)
+        _,logged=self.call('/api/login',dict(login='reader',password='ReaderPassword123!'));reader=logged['token']
+        self.assertEqual(self.call('/api/profile',token=reader)[1]['preferences']['theme'],'system')
+        self.assertEqual(self.call('/api/profile',dict(density='compact'),reader)[0],200)
+        _,accounts=self.call('/api/users',token=self.token);target=next(u for u in accounts if u['login']=='reader')
+        self.assertEqual(self.call('/api/user-role',dict(id=target['id'],role='editor'),reader)[0],403)
+        self.assertEqual(self.call('/api/user-role',dict(id=target['id'],role='editor'),self.token)[0],200)
+        self.assertEqual(self.call('/api/profile',token=reader)[0],401)
+        self.assertEqual(len(self.call('/api/full-backup',token=self.token)[1]['tables']['preferences']),2)
+
     def test_http_auth_cors_and_api(self):
         self.assertEqual(self.call('/api/state')[0],401)
         self.assertEqual(self.call('/api/state',token=self.token,origin='https://evil.example')[0],403)

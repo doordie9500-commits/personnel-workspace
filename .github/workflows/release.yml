@@ -2,13 +2,23 @@ name: Publish Windows update
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to publish
+        required: true
+        default: v2.2.1
 permissions:
   contents: write
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -22,10 +32,11 @@ jobs:
       - name: Create update manifest
         shell: python
         run: |
-          import hashlib, json, os
+          import hashlib, json, os, sys
           from pathlib import Path
+          sys.path.insert(0, os.getcwd())
           from server import VERSION
-          tag = os.environ['GITHUB_REF_NAME']
+          tag = os.environ['RELEASE_TAG']
           assert tag == 'v'+VERSION, 'Release tag must match server.VERSION'
           file = Path('dist/PersonnelWeb.exe')
           manifest = {'version': VERSION, 'filename': file.name, 'sha256': hashlib.sha256(file.read_bytes()).hexdigest(), 'size': file.stat().st_size}
@@ -34,4 +45,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME dist/PersonnelWeb.exe dist/update-manifest.json --title "Кадровий простір $env:GITHUB_REF_NAME" --notes "Кадрова вебверсія для PC: авторизація, адмінка, поденні календарі, Excel, резервні копії та автоматичні оновлення EXE з перевіркою SHA-256."
+          gh release create $env:RELEASE_TAG dist/PersonnelWeb.exe dist/update-manifest.json --title "Кадровий простір $env:RELEASE_TAG" --notes "Кадрова вебверсія для PC: авторизація, адмінка, календарі кадрових відсутностей, Excel, резервні копії та автоматичні оновлення EXE з перевіркою SHA-256."

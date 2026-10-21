@@ -8,6 +8,12 @@ export function scheduleScroll(el,table){
  slider.addEventListener('input',()=>{viewport.scrollLeft=Number(slider.value);rail.scrollLeft=viewport.scrollLeft;});
  viewport.addEventListener('scroll',()=>{slider.value=String(viewport.scrollLeft);if(Math.abs(rail.scrollLeft-viewport.scrollLeft)>1)rail.scrollLeft=viewport.scrollLeft;});
  rail.addEventListener('scroll',()=>{slider.value=String(rail.scrollLeft);if(Math.abs(viewport.scrollLeft-rail.scrollLeft)>1)viewport.scrollLeft=rail.scrollLeft;});
+ let edge=0,frame=0;
+ const stopEdge=()=>{edge=0;cancelAnimationFrame(frame);frame=0;};
+ const scrollEdge=()=>{if(!edge||!shell.isConnected){stopEdge();return;}viewport.scrollLeft+=edge*14;frame=requestAnimationFrame(scrollEdge);};
+ viewport.addEventListener('dragover',e=>{if(!Array.from(e.dataTransfer.types).includes('application/x-personnel-period'))return;const bounds=viewport.getBoundingClientRect();edge=e.clientX>bounds.right-55?1:e.clientX<bounds.left+55?-1:0;if(edge){e.preventDefault();if(!frame)frame=requestAnimationFrame(scrollEdge);}else stopEdge();});
+ viewport.addEventListener('dragleave',e=>{const bounds=viewport.getBoundingClientRect();if(e.clientX<bounds.left||e.clientX>bounds.right||e.clientY<bounds.top||e.clientY>bounds.bottom)stopEdge();});
+ viewport.addEventListener('drop',stopEdge);viewport.addEventListener('dragend',stopEdge);
  let start=null,panned=false;
  viewport.addEventListener('pointerdown',e=>{panned=false;start=null;
   if(e.pointerType!=='mouse'||![0,1].includes(e.button))return;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {movePeriod,addDays} from '../web/schedule-move.js';
+import {movePeriod,addDays,calendarDates} from '../web/schedule-move.js';
 import {moveShiftToDay,shiftCoversDay} from '../web/shifts-ui.js';
 import {validateShifts} from '../web/shifts-model.js';
 test('Moving a period from its middle preserves length, owner and notes across months',()=>{
@@ -15,3 +15,5 @@ test('Moving a night shift preserves Kyiv wall times across DST and rejects clos
  assert.equal(shiftCoversDay(before,'2026-10-23'),true);assert.equal(shiftCoversDay(before,'2026-10-24'),true);assert.equal(shiftCoversDay({...before,end:'2026-10-23T21:00:00.000Z'},'2026-10-24'),false);assert.equal(shiftCoversDay({...before,status:'Скасовано'},'2026-10-23'),false);
  const collision={...after,id:'other'};assert.throws(()=>validateShifts({warehouses:[{id:'w',name:'Склад'}],shifts:[after,collision]}),/перетинаються/);
 });
+
+test('Continuous calendar includes the next month across years and leap days',()=>{const dates=calendarDates('2026-12');assert.equal(dates[0],'2026-12-01');assert.equal(dates.at(-1),'2027-01-31');assert.equal(dates.length,62);assert.ok(calendarDates('2028-02').includes('2028-02-29'));assert.throws(()=>calendarDates('2026-13'));});

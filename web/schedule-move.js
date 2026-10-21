@@ -9,3 +9,8 @@ export function movePeriod(period,sourceDay,targetDay){
  const offset=offsetDays(sourceDay,targetDay);
  return {...period,start:addDays(period.start,offset),end:addDays(period.end,offset)};
 }
+
+export function calendarDates(month){
+ const start=month+'-01',first=number(start),end=new Date(start+'T00:00:00Z');end.setUTCMonth(end.getUTCMonth()+2);
+ return Array.from({length:end.getTime()/86400000-first},(_,i)=>addDays(start,i));
+}

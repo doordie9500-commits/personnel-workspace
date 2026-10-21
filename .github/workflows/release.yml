@@ -7,7 +7,7 @@ on:
       tag:
         description: Existing version tag to publish
         required: true
-        default: v2.4.2
+        default: v2.4.3
 permissions:
   contents: write
 jobs:

@@ -3,8 +3,77 @@
 .kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.task-card{border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px}.task-card p{white-space:pre-wrap;line-height:1.6}.task-card small{color:var(--muted)}.member-list{max-height:50vh;overflow:auto;margin-top:14px}.wrap{white-space:pre-wrap;max-width:350px;line-height:1.6}@media(max-width:900px){.kanban{grid-template-columns:1fr}}
 [hidden]{display:none!important}
 
-.sidebar{overflow-y:auto;flex-shrink:0}.nav{flex-shrink:0}.profile-menu{position:relative}.profile-menu summary{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--ink);list-style:none}.profile-menu summary::-webkit-details-marker{display:none}.profile-popover{position:absolute;right:0;top:48px;width:min(320px,85vw);z-index:20;display:flex;flex-direction:column;gap:10px;padding:18px;background:white;border:1px solid var(--line);box-shadow:0 12px 32px #142d3720;border-radius:12px}.profile-popover button{text-align:left}.profile-popover small{line-height:1.5;overflow-wrap:anywhere}:root[data-density=compact] td,:root[data-density=compact] th{padding:8px 10px}:root[data-theme=dark]{color:#e0e9ed;background:#111d25;--ink:#e0e9ed;--muted:#a4b7c3;--line:#3b4d59;--nav:#0b1720}:root[data-theme=dark] .panel,:root[data-theme=dark] .topbar,:root[data-theme=dark] .stat,:root[data-theme=dark] dialog,:root[data-theme=dark] .profile-popover{background:#1b2b36;color:var(--ink)}:root[data-theme=dark] button,:root[data-theme=dark] input,:root[data-theme=dark] select,:root[data-theme=dark] textarea{background:#233845;color:var(--ink)}:root[data-theme=dark] .primary{background:var(--green);color:white}:root[data-theme=dark] th,:root[data-theme=dark] .filters,:root[data-theme=dark] .filter-summary,:root[data-theme=dark] .note{background:#20323e}:root[data-theme=dark] td{border-color:var(--line)}
+.sidebar{overflow-y:auto;flex-shrink:0}.nav{flex-shrink:0}.profile-menu{position:relative}.profile-menu summary{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--ink);list-style:none}.profile-menu summary::-webkit-details-marker{display:none}.profile-popover{position:absolute;right:0;top:48px;width:min(320px,85vw);z-index:20;display:flex;flex-direction:column;gap:10px;padding:18px;background:white;border:1px solid var(--line);box-shadow:0 12px 32px #142d3720;border-radius:12px}.profile-popover button{text-align:left}.profile-popover small{line-height:1.5;overflow-wrap:anywhere}:root[data-density=compact] td,:root[data-density=compact] th{padding:8px 10px}
 @media(max-width:650px){.profile-menu summary>span:not(.avatar){display:none}.profile-popover{position:fixed;right:12px;top:65px}.top-status{gap:8px}}
 
-:root{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}.theme-switcher{display:flex;gap:3px;padding:3px;border:1px solid var(--line);border-radius:10px;flex-shrink:0}.theme-switcher button{padding:6px 9px;border:0;background:transparent;font-size:12px;white-space:nowrap}.theme-switcher button.selected{background:#dff2e9;color:#0d6551}:root[data-theme=dark] .theme-switcher button.selected{background:#2b5b4b;color:#d3f6e5}:root[data-theme=dark] tbody tr:hover{background:#263d47}:root[data-theme=dark] .calendar th:first-child,:root[data-theme=dark] .calendar td:first-child{background:#1b2b36}:root[data-theme=dark] .calendar .weekend,:root[data-theme=dark] .details,:root[data-theme=dark] .profile-stats div{background:#223642}:root[data-theme=dark] th{color:#a4b7c3}:root[data-theme=dark] .danger{color:#ffabb8;background:#422b35}:root[data-theme=dark] .form-error{color:#ffbac5;background:#442a36}:root[data-theme=dark] .warning{color:#eed18f;background:#413a29}:root[data-theme=dark] input,:root[data-theme=dark] select,:root[data-theme=dark] textarea{border-color:#516775}:root[data-theme=dark] button:hover{background:#2b4654}:root[data-theme=dark] .avatar{background:#2c4b43;color:#c3e5d7}
+:root{color-scheme:light}.theme-switcher{display:flex;gap:3px;padding:3px;border:1px solid var(--line);border-radius:10px;flex-shrink:0}.theme-switcher button{padding:6px 9px;border:0;background:transparent;font-size:12px;white-space:nowrap}.theme-switcher button.selected{background:#dff2e9;color:#0d6551}
 @media(max-width:700px){.topbar{height:auto;min-height:83px;flex-wrap:wrap;padding-top:12px;padding-bottom:12px}.topbar .breadcrumb{flex-basis:100%}.top-status{flex:1;flex-wrap:wrap}.theme-switcher{margin-left:auto}.theme-switcher button{padding:6px 8px;font-size:11px}}
+
+/* Night theme: layered graphite surfaces, restrained emerald accents. */
+:root[data-theme=dark]{color-scheme:dark;background:#101419;color:#dce3eb;--ink:#dce3eb;--muted:#96a2b2;--line:#2a333f;--green:#23866d;--nav:#141a21;--red:#ef96a3;--night-panel:#191f27;--night-raised:#202833;--night-input:#121820}
+:root[data-theme=dark] body{background:#101419}
+:root[data-theme=dark] .sidebar{background:var(--nav);border-right:1px solid #242c36}
+:root[data-theme=dark] .brand-icon{background:#25483f;color:#9be0c4}
+:root[data-theme=dark] .nav{background:transparent;color:#9aa8b8}
+:root[data-theme=dark] .nav:hover{background:#202b33;color:#e9f0f5}
+:root[data-theme=dark] .nav.active{background:#223c34;color:#b5e9d2;box-shadow:inset 3px 0 #58b28e}
+:root[data-theme=dark] .eyebrow{color:#758393}
+:root[data-theme=dark] .side-footer{border-color:#2a333f;color:#8a98a9}
+:root[data-theme=dark] .side-footer strong{color:#b9c5d2}
+:root[data-theme=dark] .side-footer button{background:transparent;color:#a5b3c3}
+:root[data-theme=dark] .topbar{background:#151b22}
+:root[data-theme=dark] .panel,:root[data-theme=dark] .stat{background:var(--night-panel);box-shadow:0 4px 18px #00000012}
+:root[data-theme=dark] .stat:hover{background:#1e2831;border-color:#42574f}
+:root[data-theme=dark] .panel-head{background:#1b222b}
+:root[data-theme=dark] .heading h1,:root[data-theme=dark] .panel-head h2{color:#eef2f7}
+:root[data-theme=dark] .stat .hint,:root[data-theme=dark] .person small,:root[data-theme=dark] .current-date,:root[data-theme=dark] .legend,:root[data-theme=dark] .help-list{color:#96a2b2}
+:root[data-theme=dark] button{background:#242d38;border-color:#354150;color:#d7e1ed}
+:root[data-theme=dark] button:hover{background:#2c3946;border-color:#506374}
+:root[data-theme=dark] button:focus-visible,:root[data-theme=dark] summary:focus-visible{outline:2px solid #77c6a7;outline-offset:3px}
+:root[data-theme=dark] .primary{background:#267d65;border-color:#338e74;color:#f1fff8}
+:root[data-theme=dark] .primary:hover{background:#309476;border-color:#58b796}
+:root[data-theme=dark] .subtle,:root[data-theme=dark] .link{background:transparent;border-color:transparent}
+:root[data-theme=dark] .link{color:#a6d9c6}
+:root[data-theme=dark] .link:hover{color:#d5f3e5;background:transparent}
+:root[data-theme=dark] .danger{background:#35242c;border-color:#62404d;color:#f1a4b0}
+:root[data-theme=dark] input,:root[data-theme=dark] select,:root[data-theme=dark] textarea{background:var(--night-input);color:#dce3eb;border-color:#364250;accent-color:#69b596}
+:root[data-theme=dark] input::placeholder,:root[data-theme=dark] textarea::placeholder{color:#7f8d9e;opacity:1}
+:root[data-theme=dark] input:focus,:root[data-theme=dark] select:focus,:root[data-theme=dark] textarea:focus{border-color:#70b69b;outline:3px solid #70b69b20}
+:root[data-theme=dark] input[type=date],:root[data-theme=dark] input[type=month]{color-scheme:dark}
+:root[data-theme=dark] .filters{background:var(--night-panel)}
+:root[data-theme=dark] th,:root[data-theme=dark] .filter-summary{background:#151c24;color:#9cabbc}
+:root[data-theme=dark] td{border-color:#29323d}
+:root[data-theme=dark] tbody tr:hover{background:#202a34}
+:root[data-theme=dark] .person .avatar,:root[data-theme=dark] .avatar{background:#293a3d;color:#b7d9d1}
+:root[data-theme=dark] .badge{background:#293440;color:#b2c0d0}
+:root[data-theme=dark] .badge.work,:root[data-theme=dark] .badge.fresh{background:#243e34;color:#9bd8b7}
+:root[data-theme=dark] .badge.leave{background:#29354e;color:#b3c8f1}
+:root[data-theme=dark] .badge.medical,:root[data-theme=dark] .badge.late{background:#442d3b;color:#edb2c7}
+:root[data-theme=dark] .badge.soon{background:#403927;color:#e2cb93}
+:root[data-theme=dark] .note{background:#202e2b;border-color:#365047;color:#b4d3c4}
+:root[data-theme=dark] .warning{background:#373024;border-color:#5b5038;color:#e4cd9d}
+:root[data-theme=dark] .form-error{background:#3c2730;color:#f0b2be}
+:root[data-theme=dark] .calendar th:first-child,:root[data-theme=dark] .calendar td:first-child{background:#191f27}
+:root[data-theme=dark] .calendar th:first-child{background:#151c24}
+:root[data-theme=dark] .calendar .weekend{background:#141b23}
+:root[data-theme=dark] .calendar td button{background:transparent;color:#8797aa}
+:root[data-theme=dark] .calendar td button:hover{background:#303e4c;color:#e1eaf3}
+:root[data-theme=dark] .calendar td button.cell-work{background:#263f35;color:#a7dfbf}
+:root[data-theme=dark] .calendar td button.cell-leave{background:#2d3953;color:#bfd0f4}
+:root[data-theme=dark] .calendar td button.cell-medical{background:#452f3d;color:#edbacb}
+:root[data-theme=dark] .calendar td button.cell-kzv{background:#3b3150;color:#d4bfea}
+:root[data-theme=dark] .calendar .today{box-shadow:inset 2px 0 #75b89a,inset -2px 0 #75b89a}
+:root[data-theme=dark] dialog,:root[data-theme=dark] .profile-popover{background:#1b222c;border-color:#394554;box-shadow:0 24px 90px #00000070}
+:root[data-theme=dark] dialog::backdrop{background:#05080db3;backdrop-filter:blur(5px)}
+:root[data-theme=dark] .modal-head,:root[data-theme=dark] .modal-foot{background:#171e27}
+:root[data-theme=dark] .profile-stats div,:root[data-theme=dark] .details{background:#222e38;color:#b3c2cf}
+:root[data-theme=dark] .profile-stats strong{color:#aadbc4}
+:root[data-theme=dark] .empty{color:#94a2b2}
+:root[data-theme=dark] .empty strong{color:#c4d0dd}
+:root[data-theme=dark] .task-card{background:#1e2731}
+:root[data-theme=dark] .accent{color:#9bd8bd}
+:root[data-theme=dark] .theme-switcher{background:#10171e;border-color:#303d49}
+:root[data-theme=dark] .theme-switcher button{background:transparent;color:#94a4b5;border-color:transparent}
+:root[data-theme=dark] .theme-switcher button.selected{background:#2a3e39;color:#c4efdb;box-shadow:0 2px 6px #00000025}
+:root[data-theme=dark] .mobile-nav{background:#202c34;color:#d2e6df}
+:root[data-theme=dark] .table-wrap,:root[data-theme=dark] .sidebar,:root[data-theme=dark] .modal-body{scrollbar-color:#465565 #161d25;scrollbar-width:thin}

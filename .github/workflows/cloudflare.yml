@@ -40,6 +40,11 @@ jobs:
           node --check cloudflare/worker.js
           node --test tests/*.test.mjs
           python -m unittest discover -s tests
+      - name: Apply additive database migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: npx --yes wrangler@4.92.0 d1 migrations apply personnel-workspace --remote --config cloudflare/wrangler.jsonc
       - name: Publish existing Worker and static assets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

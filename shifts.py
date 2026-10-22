@@ -29,6 +29,9 @@ def validate_shifts(raw,text):
             member={'id':text(m.get('id'),200,True),'name':text(m.get('name'),200,True)}
             for key in ('role','callsign'):
                 if key in m:member[key]=text(m[key],200)
+            if 'trainee' in m:
+                if type(m['trainee']) is not bool:raise ValueError('Некоректна позначка стажера.')
+                member['trainee']=m['trainee'];member['trainee_reason']=text(m.get('trainee_reason',''),500,m['trainee'])
             if member['id'] in member_ids:raise ValueError('Повторення працівника.')
             member_ids.add(member['id']);item['members'].append(member)
             if item['status'] not in ('Скасовано','Вихідний'):
@@ -54,6 +57,11 @@ def prepare_shifts(raw,before,user):
             else:m['name']=people[m['id']]['name']
             snapshot=next((x for x in previous.get('members',[]) if x['id']==m['id']),{}) if previous else {}
             for key in ('role','callsign'):m[key]=m.get(key,snapshot.get(key,people.get(m['id'],{}).get(key,'')))
+        for m in s.get('members',[]):
+            person=people.get(m['id'],{});snapshot=next((x for x in previous.get('members',[]) if x['id']==m['id']),{}) if previous else {}
+            new_role=bool(person.get('role') and m.get('role') and m.get('role')!=person.get('role'))
+            m['trainee']=m.get('trainee',snapshot.get('trainee',person.get('category')=='Стажер' or new_role))
+            m['trainee_reason']=(m.get('trainee_reason') or snapshot.get('trainee_reason') or ('Нова посада: '+m['role'] if new_role else person.get('trainee_reason') or 'Новий працівник')) if m['trainee'] else ''
         s['warehouse_name']=next((w['name'] for w in raw['warehouses'] if w['id']==s['warehouse_id']),'')
         s.update(created_by=previous.get('created_by') if previous else user['id'],created_at=previous.get('created_at') if previous else now,updated_by=user['id'],updated_at=now)
     if user.get('role')!='owner' and set(old)-{s['id'] for s in raw['shifts']}:raise ValueError('Історію змін не можна видаляти. Скористайтеся скасуванням.')

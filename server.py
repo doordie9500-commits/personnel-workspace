@@ -24,7 +24,7 @@ from updater import UpdateManager
 from admin_extensions import CATEGORIES,EXTRA_TABLES,validate_extensions
 from fullbackup import full_backup,restore_full
 
-VERSION = '2.5.0'
+VERSION = '2.6.0'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
@@ -158,6 +158,8 @@ def validate_state(raw):
         category=raw['people'][index].get('category',CATEGORIES[0])
         if category not in CATEGORIES:raise Problem('Невідома категорія людини.')
         person['category']=category
+        person['trainee_reason']=text(raw['people'][index].get('trainee_reason',''),500)
+        if category=='Стажер' and not person['trainee_reason']:person['trainee_reason']='Новий працівник'
     try:
         result.update(validate_extensions(raw,ids,text,valid_day))
         result.update(validate_shifts(raw,text))
@@ -197,7 +199,9 @@ class Database:
             CREATE TABLE IF NOT EXISTS chat_members(user_id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS chat_reads(user_id TEXT PRIMARY KEY,last_id INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,author_id TEXT NOT NULL,author_login TEXT NOT NULL,author_name TEXT NOT NULL,body TEXT NOT NULL,client_id TEXT NOT NULL,UNIQUE(author_id,client_id));
-            CREATE TABLE IF NOT EXISTS preferences(user_id TEXT PRIMARY KEY,data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS schedule_links(id TEXT PRIMARY KEY,token_hash TEXT UNIQUE NOT NULL,created TEXT NOT NULL,expires REAL NOT NULL,scope TEXT NOT NULL,revoked INTEGER NOT NULL DEFAULT 0);
+
+CREATE TABLE IF NOT EXISTS preferences(user_id TEXT PRIMARY KEY,data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, login TEXT UNIQUE NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
             CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS invitations(token TEXT PRIMARY KEY,role TEXT NOT NULL,expires REAL NOT NULL,used INTEGER NOT NULL DEFAULT 0);
@@ -283,6 +287,8 @@ CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,cr
                 for person in raw.get('people',[]):
                     if isinstance(person,dict) and 'category' not in person and person.get('id') in previous_people:
                         person['category']=previous_people[person['id']].get('category',CATEGORIES[0])
+                for person in raw.get('people',[]):
+                    if isinstance(person,dict) and 'trainee_reason' not in person and person.get('id') in previous_people:person['trainee_reason']=previous_people[person['id']].get('trainee_reason','')
                 for name in EXTRA_TABLES+SHIFT_TABLES+('group_colors',):
                     if name not in raw and name in previous:raw[name]=previous[name]
             if not restore_id and not replace:
@@ -387,7 +393,7 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if not path.startswith('/api/'):
                 if self.command != 'GET': raise Problem('Метод не підтримується.', 405)
-                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js','shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js', 'schedule-export.js','group-colors.js','calendar-edit.js','group-calendar.js','point-labels.js','work-conflicts.js','work-planner.js','planning-ui.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
+                names = {'/': 'index.html', '/index.html': 'index.html', '/share.html':'share.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js','shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js', 'schedule-export.js','group-colors.js','calendar-edit.js','group-calendar.js','point-labels.js','work-conflicts.js','work-planner.js','planning-ui.js','rotation.js','shared-schedule.js','share-view.js','sharing-ui.js','work-calendar-export.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
                 if path not in names: raise Problem('Сторінку не знайдено.', 404)
                 file = STATIC/names[path]
                 if path=='/config.js' and self.server.cloud_api:
@@ -409,8 +415,16 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/health' and self.command == 'GET': return self.reply(200, {'ok': True, 'version': VERSION})
             if path == '/api/login' and self.command == 'POST': return self.reply(200, db.login(payload.get('login'), payload.get('password'), self.client_address[0]))
             if path == '/api/redeem' and self.command == 'POST': return self.reply(200, db.redeem(payload.get('invitation'), payload.get('login'), payload.get('password'), self.client_address[0]))
+            if path=='/api/shared-schedule' and self.command=='GET':
+                from schedule_links import public_schedule,ShareError
+                try:return self.reply(200,public_schedule(db,self.headers.get('Authorization','')))
+                except ShareError as e:raise Problem(str(e),e.status)
             token = self.headers.get('Authorization', '').removeprefix('Bearer ')
             user = self.cloud_identity(token) if self.server.cloud_api else db.identity(token)
+            if path=='/api/schedule-links':
+                from schedule_links import schedule_links,ShareError
+                try:return self.reply(200,schedule_links(db,user,self.command=='POST',payload))
+                except ShareError as e:raise Problem(str(e),e.status)
             if path=='/api/daily-backups':
                 if user['role']!='owner':raise Problem('Доступ адміністратора.',403)
                 try:

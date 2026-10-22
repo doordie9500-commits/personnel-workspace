@@ -20,6 +20,7 @@ test('Historical participants survive removal; creators are server supplied; his
  const finished=structuredClone(s);finished.shifts[0].status='Завершили зміну';finished.shifts[0].actual_end='2026-10-21T18:00:00.000Z';prepareShifts(finished,s,{id:'other'});assert.equal(hours(finished.shifts[0]),13);assert.equal(finished.shifts[0].created_by,'actor');assert.equal(finished.shifts[0].updated_by,'other');
  const edited=structuredClone(finished);edited.shifts[0].notes='rewrite';assert.throws(()=>prepareShifts(edited,finished,{id:'actor'}),/Історична/);
  assert.ok(diff(s,finished).some(d=>d.table==='shifts'));
+ const corrected=structuredClone(finished);corrected.shifts[0].notes='Виправлення';prepareShifts(corrected,finished,{id:'admin',role:'owner'});assert.equal(corrected.shifts[0].notes,'Виправлення');const cleared=structuredClone(finished);cleared.shifts=[];prepareShifts(cleared,finished,{id:'admin',role:'owner'});assert.equal(cleared.shifts.length,0);
 });
 test('Old state loads additively; stale clients preserve shift tables',()=>{
  const old={title:'Тест',people:[],events:[],groups:[],roles:[]};assert.deepEqual(validate(old).shifts,[]);const before=state();prepareShifts(old,before,{id:'x'});assert.equal(old.shifts.length,1);

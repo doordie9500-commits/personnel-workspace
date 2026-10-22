@@ -45,10 +45,10 @@ def prepare_shifts(raw,before,user):
     for s in raw['shifts']:
         previous=old.get(s['id'])
         if previous==s:continue
-        if previous and previous['status'] in ('Завершили зміну','Скасовано'):raise ValueError('Історична зміна доступна лише для перегляду.')
+        if previous and previous['status'] in ('Завершили зміну','Скасовано') and user.get('role')!='owner':raise ValueError('Історична зміна доступна лише для перегляду.')
         for m in s.get('members',[]):
             if m['id'] not in people or people[m['id']]['archived']:raise ValueError('Виберіть активного працівника.')
             m['name']=people[m['id']]['name']
         s['warehouse_name']=next((w['name'] for w in raw['warehouses'] if w['id']==s['warehouse_id']),'')
         s.update(created_by=previous.get('created_by') if previous else user['id'],created_at=previous.get('created_at') if previous else now,updated_by=user['id'],updated_at=now)
-    if set(old)-{s['id'] for s in raw['shifts']}:raise ValueError('Історію змін не можна видаляти. Скористайтеся скасуванням.')
+    if user.get('role')!='owner' and set(old)-{s['id'] for s in raw['shifts']}:raise ValueError('Історію змін не можна видаляти. Скористайтеся скасуванням.')

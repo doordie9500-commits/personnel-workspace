@@ -23,11 +23,11 @@ export function prepareShifts(raw,before,user,now=new Date().toISOString()){
  for(const key of SHIFT_TABLES)if(!Object.hasOwn(raw,key))raw[key]=structuredClone(before[key]||[]);
  const old=new Map((before.shifts||[]).map(s=>[s.id,s])),people=new Map(raw.people.map(p=>[p.id,p]));
  for(const s of raw.shifts){const previous=old.get(s.id);if(previous&&JSON.stringify(s)===JSON.stringify(previous))continue;
-   if(previous&&['Завершили зміну','Скасовано'].includes(previous.status))throw Error('Історична зміна доступна лише для перегляду.');
+   if(previous&&['Завершили зміну','Скасовано'].includes(previous.status)&&user.role!=='owner')throw Error('Історична зміна доступна лише для перегляду.');
    for(const m of s.members||[]){if(!people.has(m.id)||people.get(m.id).archived)throw Error('Виберіть активного працівника.');m.name=people.get(m.id).name;}
    s.warehouse_name=(raw.warehouses||[]).find(w=>w.id===s.warehouse_id)?.name||'';
    s.created_by=previous?.created_by||user.id;s.created_at=previous?.created_at||now;s.updated_by=user.id;s.updated_at=now;
  }
- if([...old.keys()].some(id=>!raw.shifts.some(s=>s.id===id)))throw Error('Історію змін не можна видаляти. Скористайтеся скасуванням.');
+ if(user.role!=='owner'&&[...old.keys()].some(id=>!raw.shifts.some(s=>s.id===id)))throw Error('Історію змін не можна видаляти. Скористайтеся скасуванням.');
  return raw;
 }

@@ -38,6 +38,19 @@ class ShiftTests(unittest.TestCase):
         two['start']=two['end'];two['end']='2026-10-22T05:00:00.000Z';self.assertEqual(len(validate_shifts(s,text)['shifts']),2)
         s['warehouses'][0]['archived']=True
         with self.assertRaises(ValueError):validate_shifts(s,text)
+    def test_conflicts_are_rejected_atomically_but_legacy_conflicts_do_not_block_other_edits(self):
+        from shifts import assert_no_new_conflicts
+        before=state();after=copy.deepcopy(before)
+        after['events']=[dict(id='e',person_id='p',kind='Відпустка',start='2026-10-21',end='2026-10-21',notes='',cancelled=False,returned_on='')]
+        with self.assertRaises(ValueError):assert_no_new_conflicts(before,after)
+        assert_no_new_conflicts(after,copy.deepcopy(after))
+        with tempfile.TemporaryDirectory() as folder:
+            db=Database(Path(folder)/'test.sqlite3');user=dict(id='actor',login='admin',role='owner')
+            saved=db.commit(user,before,0)
+            with self.assertRaises(Problem):db.commit(user,after,saved['revision'])
+            self.assertEqual(db.read()['revision'],1)
+            self.assertEqual(db.read()['state']['events'],[])
+
     def test_history_snapshots_and_server_actor(self):
         s=state();prepare_shifts(s,{},dict(id='actor'));s=validate_state(s);after=copy.deepcopy(s);after['people']=[];prepare_shifts(after,s,dict(id='other'));self.assertEqual(validate_state(after)['shifts'][0]['members'][0]['name'],'Іван')
         after=copy.deepcopy(s);after['shifts']=[]

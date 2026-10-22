@@ -53,7 +53,46 @@ def prepare_shifts(raw,before,user):
                 if user.get('role')!='owner' or not any(x['id']==m['id'] and x['name']==m['name'] for old_shift in before.get('shifts',[]) for x in old_shift['members']):raise ValueError('Виберіть активного працівника.')
             else:m['name']=people[m['id']]['name']
             snapshot=next((x for x in previous.get('members',[]) if x['id']==m['id']),{}) if previous else {}
-            for key in ('role','callsign'):m[key]=snapshot.get(key,people.get(m['id'],{}).get(key,m.get(key,'')))
+            for key in ('role','callsign'):m[key]=m.get(key,snapshot.get(key,people.get(m['id'],{}).get(key,'')))
         s['warehouse_name']=next((w['name'] for w in raw['warehouses'] if w['id']==s['warehouse_id']),'')
         s.update(created_by=previous.get('created_by') if previous else user['id'],created_at=previous.get('created_at') if previous else now,updated_by=user['id'],updated_at=now)
     if user.get('role')!='owner' and set(old)-{s['id'] for s in raw['shifts']}:raise ValueError('Історію змін не можна видаляти. Скористайтеся скасуванням.')
+
+
+def assert_no_new_conflicts(before,after):
+    from datetime import date,timedelta
+    from calendar import monthrange
+    def day(value):
+        utc=datetime.fromisoformat(value.replace('Z','+00:00'))
+        def transition(month):
+            d=date(utc.year,month,monthrange(utc.year,month)[1])
+            return datetime.combine(d-timedelta(days=(d.weekday()+1)%7),datetime.min.time(),timezone.utc)+timedelta(hours=1)
+        return (utc+timedelta(hours=3 if transition(3)<=utc<transition(10) else 2)).date().toordinal()
+    def conflicts(state):
+        work={}
+        for s in state.get('shifts',[]):
+            if s['status'] in ('Скасовано','Вихідний'):continue
+            end=(datetime.fromisoformat((s.get('actual_end') or s['end']).replace('Z','+00:00'))-timedelta(milliseconds=1)).isoformat().replace('+00:00','Z')
+            for m in s['members']:work.setdefault(m['id'],[]).append((day(s['start']),day(end),s['warehouse_name']))
+        for e in state.get('events',[]):
+            if e['kind']=='Робота' and not e.get('cancelled'):work.setdefault(e['person_id'],[]).append((date.fromisoformat(e['start']).toordinal(),date.fromisoformat(e['end']).toordinal(),'Індивідуальна робота'))
+        result=[]
+        for e in state.get('events',[]):
+            if e['kind']=='Робота' or e.get('cancelled'):continue
+            a=date.fromisoformat(e['start']).toordinal();b=date.fromisoformat(e['end']).toordinal()
+            if e.get('returned_on'):b=min(b,date.fromisoformat(e['returned_on']).toordinal()-1)
+            for x,y,point in work.get(e['person_id'],[]):
+                start=max(a,x);end=min(b,y)
+                if start<=end:result.append((e['person_id'],start,end,e['kind'],point))
+        return result
+    previous={}
+    for person,start,end,kind,point in conflicts(before):previous.setdefault(person,[]).append((start,end))
+    for person,start,end,kind,point in conflicts(after):
+        cursor=start
+        for a,b in sorted(previous.get(person,[])):
+            if a>cursor:break
+            if b>=cursor:cursor=b+1
+            if cursor>end:break
+        if cursor<=end:
+            name=next((p['name'] for p in after['people'] if p['id']==person),person)
+            raise ValueError(name+' · '+kind+' перетинається з роботою на '+point+'. Спочатку оформіть заміну або змініть дати.')

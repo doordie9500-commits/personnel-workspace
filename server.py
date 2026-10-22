@@ -24,7 +24,7 @@ from updater import UpdateManager
 from admin_extensions import CATEGORIES,EXTRA_TABLES,validate_extensions
 from fullbackup import full_backup,restore_full
 
-VERSION = '2.4.12'
+VERSION = '2.5.0'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
@@ -299,6 +299,10 @@ CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,cr
                     person=previous_people[delete_person['id']]
                     if not person['archived'] or delete_person.get('confirmation')!=person['name']:
                         raise Problem('Спочатку архівуйте картку та введіть повний ПІБ без змін.',403)
+            if not restore_id and not replace:
+                from shifts import assert_no_new_conflicts
+                try:assert_no_new_conflicts(json.loads(row['data']),data)
+                except ValueError as exc:raise Problem(str(exc))
             diff = changes(json.loads(row['data']), data)
             if diff:
                 db.execute('INSERT INTO backups VALUES(?,?,?,?,?)', (secrets.token_hex(12), now(), user['login'], revision, row['data']))
@@ -383,7 +387,7 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if not path.startswith('/api/'):
                 if self.command != 'GET': raise Problem('Метод не підтримується.', 405)
-                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js','shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js', 'schedule-export.js','group-colors.js','calendar-edit.js','group-calendar.js','point-labels.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
+                names = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/excel.js': 'excel.js', **{('/'+name):name for name in ('model.js','extensions.js','backup-client.js','excel-styles.js','preferences.js','chat-ui.js','shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js', 'schedule-export.js','group-colors.js','calendar-edit.js','group-calendar.js','point-labels.js','work-conflicts.js','work-planner.js','planning-ui.js')}, '/config.js': 'config.js', '/favicon.svg': 'favicon.svg', '/manifest.webmanifest': 'manifest.webmanifest'}
                 if path not in names: raise Problem('Сторінку не знайдено.', 404)
                 file = STATIC/names[path]
                 if path=='/config.js' and self.server.cloud_api:

@@ -24,7 +24,7 @@ from updater import UpdateManager
 from admin_extensions import CATEGORIES,EXTRA_TABLES,validate_extensions
 from fullbackup import full_backup,restore_full
 
-VERSION = '2.4.10'
+VERSION = '2.4.11'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']

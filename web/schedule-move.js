@@ -14,3 +14,5 @@ export function calendarDates(month){
  const start=month+'-01',first=number(start),end=new Date(start+'T00:00:00Z');end.setUTCMonth(end.getUTCMonth()+2);
  return Array.from({length:end.getTime()/86400000-first},(_,i)=>addDays(start,i));
 }
+
+export function movePerson(people,id,targetId){const from=people.findIndex(p=>p.id===id),to=people.findIndex(p=>p.id===targetId);if(from<0||to<0||from===to)return [...people];const next=[...people],item=next.splice(from,1)[0];next.splice(to,0,item);return next;}

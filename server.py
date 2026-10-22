@@ -24,7 +24,7 @@ from updater import UpdateManager
 from admin_extensions import CATEGORIES,EXTRA_TABLES,validate_extensions
 from fullbackup import full_backup,restore_full
 
-VERSION = '2.4.7'
+VERSION = '2.4.8'
 KINDS = ('Робота', 'Відпустка', 'КЗВ', 'Лікарня', 'Лікарняний', 'ВЛК', 'Реабілітація')
 ABSENCES = KINDS[1:]
 DEFAULT_ROLES = ['Мех. Вод.', 'Ком. Гар.', 'Навідник', 'номер обслуги #1', 'номер обслуги #2']
@@ -181,6 +181,9 @@ def changes(before, after):
     for key in ('groups', 'roles', 'title','group_colors'):
         if before.get(key) != after.get(key):
             result.append({'table': key, 'before': before.get(key), 'after': after.get(key)})
+    old_order=[p['id'] for p in before.get('people',[])]
+    new_order=[p['id'] for p in after.get('people',[])]
+    if old_order!=new_order:result.append({'table':'people_order','before':old_order,'after':new_order})
     return result
 
 

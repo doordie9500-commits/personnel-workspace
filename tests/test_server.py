@@ -89,6 +89,17 @@ class DatabaseTests(unittest.TestCase):
 
     def tearDown(self):self.temp.cleanup()
 
+    def test_people_order_is_persisted_and_audited(self):
+        state=empty_state();state['people']=[person(),person('p2','Друга людина')]
+        saved=self.db.commit(self.user,state,0)
+        saved['state']['people'].reverse()
+        result=self.db.commit(self.user,saved['state'],1)
+        self.assertEqual(result['revision'],2)
+        self.assertEqual(self.db.read()['state']['people'][0]['id'],'p2')
+        with self.db.connect() as conn:
+            details=json.loads(conn.execute('SELECT details FROM audit ORDER BY id DESC LIMIT 1').fetchone()[0])
+            self.assertTrue(any(d['table']=='people_order' for d in details))
+
     def test_person_deletion_requires_archive_owner_and_exact_name(self):
         state=empty_state();state['people']=[person()]
         saved=self.db.commit(self.user,state,0)

@@ -27,6 +27,8 @@ def validate_shifts(raw,text):
         member_ids=set();item['members']=[]
         for m in s['members']:
             member={'id':text(m.get('id'),200,True),'name':text(m.get('name'),200,True)}
+            for key in ('role','callsign'):
+                if key in m:member[key]=text(m[key],200)
             if member['id'] in member_ids:raise ValueError('Повторення працівника.')
             member_ids.add(member['id']);item['members'].append(member)
             if item['status'] not in ('Скасовано','Вихідний'):
@@ -50,6 +52,8 @@ def prepare_shifts(raw,before,user):
             if m['id'] not in people or people[m['id']]['archived']:
                 if user.get('role')!='owner' or not any(x['id']==m['id'] and x['name']==m['name'] for old_shift in before.get('shifts',[]) for x in old_shift['members']):raise ValueError('Виберіть активного працівника.')
             else:m['name']=people[m['id']]['name']
+            snapshot=next((x for x in previous.get('members',[]) if x['id']==m['id']),{}) if previous else {}
+            for key in ('role','callsign'):m[key]=snapshot.get(key,people.get(m['id'],{}).get(key,m.get(key,'')))
         s['warehouse_name']=next((w['name'] for w in raw['warehouses'] if w['id']==s['warehouse_id']),'')
         s.update(created_by=previous.get('created_by') if previous else user['id'],created_at=previous.get('created_at') if previous else now,updated_by=user['id'],updated_at=now)
     if user.get('role')!='owner' and set(old)-{s['id'] for s in raw['shifts']}:raise ValueError('Історію змін не можна видаляти. Скористайтеся скасуванням.')

@@ -61,3 +61,13 @@ dialog{border-radius:18px;border:1px solid var(--line);box-shadow:0 24px 100px #
 .schedule-viewport .calendar thead{position:sticky;top:0;z-index:20}
 
 .bulk-people{max-height:38vh;overflow:auto;border:1px solid var(--line);border-radius:12px;margin-block:12px}.bulk-person{padding:12px;margin:0;border-bottom:1px solid var(--line);min-height:48px}.bulk-person small{display:block;opacity:.7;margin-top:4px}
+
+/* Shared people picker: full-row selection, aligned identity and crew. */
+.shift-members,.bulk-people{display:grid;gap:8px;max-height:48vh;overflow:auto;padding:4px;border:0;border-radius:12px;margin:12px 0;scrollbar-gutter:stable}
+.shift-person-choice{padding:0;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;transition:border-color .15s,background .15s}
+.person-pick{display:grid;grid-template-columns:18px 38px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:66px;padding:12px 14px;margin:0;width:100%;cursor:pointer;border-radius:11px;transition:background .15s}
+.person-pick:hover{background:var(--surface-soft)}.person-pick input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:#27836c}
+.shift-person-choice:has(.person-pick input:checked),.bulk-person:has(input:checked){border-color:#49a98b;background:color-mix(in srgb,#27836c 9%,var(--surface));box-shadow:inset 3px 0 #49a98b}
+.person-pick:focus-within{outline:2px solid #49a98b;outline-offset:-2px}.pick-avatar{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:color-mix(in srgb,#27836c 14%,var(--surface));color:var(--ink);font-size:12px;font-weight:700}.pick-identity{min-width:0;line-height:1.35}.pick-identity strong{display:block;font-size:14px;font-weight:650;overflow-wrap:anywhere}.pick-identity small{display:block;margin-top:4px;font-size:12px;color:var(--muted);opacity:1;overflow-wrap:anywhere}.pick-group{font-size:11px;line-height:1.4;padding:4px 9px;border:1px solid var(--line);border-radius:7px;color:var(--muted);max-width:130px;overflow-wrap:anywhere;background:var(--surface-soft)}
+.bulk-person{border:1px solid var(--line);background:var(--surface)}.shift-person-details{padding:12px 14px 14px 82px;border-top:1px solid var(--line);gap:12px}.picker-search{width:100%;margin-top:14px;min-height:44px}
+@media(max-width:600px){.person-pick{grid-template-columns:18px 32px minmax(0,1fr);gap:10px;padding:10px;min-height:64px}.pick-avatar{width:32px;height:32px;border-radius:9px}.pick-group{grid-column:3;justify-self:start;margin-top:-5px}.shift-person-details{padding:12px}.shift-members,.bulk-people{max-height:45vh}}

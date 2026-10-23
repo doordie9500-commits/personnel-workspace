@@ -6,6 +6,12 @@ from server import text
 def state():
     return dict(title='Тест',people=[dict(id='p',name='Іван',archived=False)],events=[],groups=[],roles=[],warehouses=[dict(id='w',name='АТБ',number='',address='',archived=False)],shifts=[dict(id='s',warehouse_id='w',warehouse_name='АТБ',group='',start='2026-10-21T05:00:00.000Z',end='2026-10-21T17:00:00.000Z',actual_end='',status='Заплановано',members=[dict(id='p',name='Іван')],responsible_id='p',notes='')])
 class ShiftTests(unittest.TestCase):
+    def test_rename_historical_group_without_rewriting_other_history(self):
+        old=state();old['groups']=['А'];old['people'][0]['group']='А';old['shifts'][0].update(group='А',status='Завершили зміну',actual_end=old['shifts'][0]['end'])
+        new=copy.deepcopy(old);new['groups']=['Б'];new['people'][0]['group']='Б';new['shifts'][0]['group']='Б';prepare_shifts(new,old,dict(id='editor',role='editor'));self.assertEqual(new['shifts'][0]['group'],'Б');self.assertEqual(new['shifts'][0]['id'],old['shifts'][0]['id'])
+        bad=copy.deepcopy(old);bad['groups']=['Б'];bad['shifts'][0].update(group='Б',notes='Стороння зміна')
+        with self.assertRaises(ValueError):prepare_shifts(bad,old,dict(id='editor',role='editor'))
+
     def test_merged_backup_contains_chat_and_shifts(self):
         from chat import chat_route
         from fullbackup import full_backup
@@ -20,7 +26,7 @@ class ShiftTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             server=make_server(Database(Path(folder)/'test.sqlite3'),port=0);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
             try:
-                for module in ('shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js','chat-ui.js'):
+                for module in ('shifts-ui.js','shifts-model.js','schedule-move.js','schedule-scroll.js','personnel-summary.js','chat-ui.js','multi-filter.js','group-rename.js','help-ui.js'):
                     with urllib.request.urlopen('http://127.0.0.1:'+str(server.server_port)+'/'+module) as response:self.assertEqual(response.status,200)
             finally:server.shutdown();server.server_close();thread.join()
     @unittest.skipUnless(sys.platform=='win32','Windows DPAPI')

@@ -7,6 +7,11 @@ on:
       - 'cloudflare/**'
       - '.github/workflows/cloudflare.yml'
   workflow_dispatch:
+    inputs:
+      apply_migrations:
+        description: Apply pending D1 migrations (requires D1 Edit permission)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -17,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -40,7 +47,20 @@ jobs:
           node --check cloudflare/worker.js
           node --test tests/*.test.mjs
           python -m unittest discover -s tests
+      - name: Detect database migration changes
+        id: migrations
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git diff --quiet "$BEFORE" "$AFTER" -- cloudflare/migrations/; then
+            echo "required=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "required=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Apply additive database migrations
+        if: steps.migrations.outputs.required == 'true' || inputs.apply_migrations == true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           WRANGLER_SEND_METRICS: 'false'

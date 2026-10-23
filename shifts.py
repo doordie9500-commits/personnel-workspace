@@ -50,6 +50,9 @@ def prepare_shifts(raw,before,user):
     for s in raw['shifts']:
         previous=old.get(s['id'])
         if previous==s:continue
+        renamed=bool(previous) and previous.get('group') in before.get('groups',[]) and previous.get('group') not in raw.get('groups',[]) and s.get('group') not in before.get('groups',[]) and s.get('group') in raw.get('groups',[]) and previous==dict(s,group=previous.get('group'))
+        if renamed:
+            s['updated_by']=user['id'];s['updated_at']=now;continue
         if previous and previous['status'] in ('Завершили зміну','Скасовано') and user.get('role')!='owner':raise ValueError('Історична зміна доступна лише для перегляду.')
         for m in s.get('members',[]):
             if m['id'] not in people or people[m['id']]['archived']:

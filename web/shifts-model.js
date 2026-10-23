@@ -1,3 +1,4 @@
+import {onlyGroupRename} from './group-rename.js';
 export const SHIFT_TABLES=['warehouses','shifts'];
 export const STATUSES=['Заплановано','Виїжджають','Прибули на склад','Працюють','Завершили зміну','Вихідний','Скасовано'];
 export const active=s=>!['Завершили зміну','Вихідний','Скасовано'].includes(s.status);
@@ -23,6 +24,7 @@ export function prepareShifts(raw,before,user,now=new Date().toISOString()){
  for(const key of SHIFT_TABLES)if(!Object.hasOwn(raw,key))raw[key]=structuredClone(before[key]||[]);
  const old=new Map((before.shifts||[]).map(s=>[s.id,s])),people=new Map(raw.people.map(p=>[p.id,p]));
  for(const s of raw.shifts){const previous=old.get(s.id);if(previous&&JSON.stringify(s)===JSON.stringify(previous))continue;
+   if(onlyGroupRename(previous,s,before,raw)){s.updated_by=user.id;s.updated_at=now;continue;}
    if(previous&&['Завершили зміну','Скасовано'].includes(previous.status)&&user.role!=='owner')throw Error('Історична зміна доступна лише для перегляду.');
    for(const m of s.members||[]){if(!people.has(m.id)||people.get(m.id).archived){if(user.role!=='owner'||!(before.shifts||[]).some(old=>old.members.some(x=>x.id===m.id&&x.name===m.name)))throw Error('Виберіть активного працівника.');}else m.name=people.get(m.id).name;for(const key of ['role','callsign']){const snapshot=previous?.members.find(x=>x.id===m.id);m[key]=m[key]??snapshot?.[key]??people.get(m.id)?.[key]??'';}}
    for(const m of s.members||[]){const person=people.get(m.id),snapshot=previous?.members.find(x=>x.id===m.id),newRole=person&&person.role&&m.role&&person.role!==m.role;m.trainee=m.trainee??snapshot?.trainee??(person?.category==='Стажер'||!!newRole);m.trainee_reason=m.trainee?(m.trainee_reason||snapshot?.trainee_reason||(newRole?'Нова посада: '+m.role:person?.trainee_reason||'Новий працівник')):'';}

@@ -1,14 +1,15 @@
 // Horizontal table navigation independent of moving scheduled records.
+const calendarPositions=new Map();
 export function scheduleScroll(el,table){
+ const memoryKey=table.className+'|'+(table.querySelector('[data-calendar-month]')?.dataset.calendarMonth||''),remembered=calendarPositions.get(memoryKey)||0;let initialized=false;
  const viewport=el('div',{class:'table-wrap schedule-viewport',tabindex:0,'aria-label':'Графік: прокручування мишею або клавішами'},table);
  const slider=el('input',{type:'range',min:0,max:0,step:1,value:0,'aria-label':'Прокрутити графік по горизонталі'});
- const spacer=el('div'),rail=el('div',{class:'schedule-scrollbar',tabindex:0,'aria-label':'Нижня смуга прокручування графіка'},spacer,slider);
+ const rail=el('div',{class:'schedule-scrollbar','aria-label':'Нижня смуга прокручування графіка'},slider);
  const shell=el('div',{class:'schedule-scroll-shell'},viewport,rail);
  const monthLabels=()=>{const bounds=viewport.getBoundingClientRect(),frozen=table.querySelector('thead th[rowspan]')?.getBoundingClientRect().width||0;for(const cell of table.querySelectorAll('[data-calendar-month]')){const label=cell.querySelector('.calendar-month-label');if(!label)continue;const box=cell.getBoundingClientRect(),offset=Math.max(0,Math.min(bounds.left+frozen+12-box.left-12,box.width-label.getBoundingClientRect().width-24));label.style.transform='translateX('+offset+'px)';}};
- const resize=()=>{spacer.style.width=table.scrollWidth+'px';slider.max=String(Math.max(0,table.scrollWidth-viewport.clientWidth));slider.value=String(viewport.scrollLeft);slider.style.setProperty('--scroll-thumb-size',Math.max(32,viewport.clientWidth/table.scrollWidth*viewport.clientWidth)+'px');rail.scrollLeft=viewport.scrollLeft;monthLabels();};
- slider.addEventListener('input',()=>{viewport.scrollLeft=Number(slider.value);rail.scrollLeft=viewport.scrollLeft;});
- viewport.addEventListener('scroll',()=>{monthLabels();slider.value=String(viewport.scrollLeft);if(Math.abs(rail.scrollLeft-viewport.scrollLeft)>1)rail.scrollLeft=viewport.scrollLeft;});
- rail.addEventListener('scroll',()=>{slider.value=String(rail.scrollLeft);if(Math.abs(viewport.scrollLeft-rail.scrollLeft)>1)viewport.scrollLeft=rail.scrollLeft;});
+ const resize=()=>{const max=Math.max(0,table.scrollWidth-viewport.clientWidth);if(!initialized){initialized=true;viewport.scrollLeft=Math.min(remembered,max);}slider.max=String(max);slider.value=String(viewport.scrollLeft);slider.style.setProperty('--scroll-thumb-size',Math.max(32,viewport.clientWidth/table.scrollWidth*viewport.clientWidth)+'px');monthLabels();};
+ slider.addEventListener('input',()=>{viewport.scrollLeft=Number(slider.value);});
+ viewport.addEventListener('scroll',()=>{if(initialized&&viewport.isConnected)calendarPositions.set(memoryKey,viewport.scrollLeft);monthLabels();slider.value=String(viewport.scrollLeft);});
  let edge=0,frame=0;
  const stopEdge=()=>{edge=0;cancelAnimationFrame(frame);frame=0;};
  const scrollEdge=()=>{if(!edge||!shell.isConnected){stopEdge();return;}viewport.scrollLeft+=edge*14;frame=requestAnimationFrame(scrollEdge);};

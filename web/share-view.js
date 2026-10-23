@@ -1,4 +1,5 @@
 import {groupCalendar} from './group-calendar.js';
+const systemTheme=matchMedia('(prefers-color-scheme:dark)'),applyTheme=()=>document.documentElement.dataset.theme=systemTheme.matches?'dark':'light';applyTheme();systemTheme.addEventListener('change',applyTheme);
 const root=document.querySelector('#shared'),dialog=document.querySelector('#modal'),token=new URLSearchParams(location.hash.slice(1)).get('view')||'',api=(window.PERSONNEL_CONFIG?.API_URL||'').replace(/\/$/,'');
 function el(tag,attrs={},...children){const n=document.createElement(tag);for(const [k,v] of Object.entries(attrs)){if(k.startsWith('on'))n.addEventListener(k.slice(2).toLowerCase(),v);else if(v!=null)n.setAttribute(k,String(v));}for(const child of children.flat(Infinity)){if(child!=null)n.append(child instanceof Node?child:document.createTextNode(String(child)));}return n;}
 const btn=(label,click,cls='')=>el('button',{type:'button',class:cls,onClick:click},label),day=d=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Kyiv'}).format(new Date(d)),nice=d=>d.split('-').reverse().join('.'),fmt=d=>nice(day(d));

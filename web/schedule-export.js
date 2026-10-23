@@ -1,6 +1,8 @@
+import {absenceCalendar} from './absence-export.js';
 import {matches} from './multi-filter.js';
 import {column} from './excel-styles.js';
 export function scheduleSheets(state,people,month,absenceOnly=false,kind='',allowedKinds=null){
+  if(absenceOnly)return absenceCalendar(state,people,month,kind,allowedKinds);
   const days=new Date(+month.slice(0,4),+month.slice(5),0).getDate(),dates=Array.from({length:days},(_,i)=>month+'-'+String(i+1).padStart(2,'0')),codes={Робота:'Р',Відпустка:'В',КЗВ:'К',Лікарня:'Л',Лікарняний:'Л',ВЛК:'М',Реабілітація:'Л'},week=['Нд','Пн','Вт','Ср','Чт','Пт','Сб'],weekends=[],summaryCodes=allowedKinds?['В','К']:['Р','В','К','Л','М'],summaryTitles=allowedKinds?['Відп.','КЗВ']:['Робота','Відп.','КЗВ','Лікув.','ВЛК'],last=column(days+2+summaryCodes.length);
   const rows=[[absenceOnly?(allowedKinds?'КАЛЕНДАР ВІДПУСТОК ТА КЗВ':'КАЛЕНДАР ВІДПУСТОК ТА ЛІКУВАННЯ'):'ПОДЕННИЙ КАДРОВИЙ ТАБЕЛЬ'],[state.title+' · '+month+' · кінцева дата включно'],[],['ПІБ','Позивний',...dates.map((d,i)=>{const w=new Date(d+'T12:00:00Z').getUTCDay();if(w===0||w===6)weekends.push(i);return (i+1)+'\n'+week[w];}),...summaryTitles,'Разом']];
   for(const [index,p] of people.entries()){

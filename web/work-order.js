@@ -1,0 +1,6 @@
+export function workBounds(record,day){return record.source_event?[record.start_day,record.end_day]:[day(record.start),day(new Date(Date.parse(record.actual_end||record.end)-1).toISOString())];}
+export function orderWorkRows(rows,recordsFor,from,to,day){
+ return rows.map((row,index)=>{const periods=recordsFor(row).filter(s=>!['Скасовано','Вихідний'].includes(s.status)).map(s=>workBounds(s,day)).filter(([a,b])=>a<=to&&b>=from&&b>=a).map(([a,b])=>[a<from?from:a,b>to?to:b]).sort((a,b)=>a[0].localeCompare(b[0])||a[1].localeCompare(b[1]));return {row,index,period:periods[0]};}).sort((a,b)=>Number(!a.period)-Number(!b.period)||(a.period&&b.period?(a.period[0].localeCompare(b.period[0])||a.period[1].localeCompare(b.period[1])):0)||a.index-b.index).map(item=>item.row);
+}
+export function orderWorkPeople(people,records,from,to,day){const byPerson=new Map();for(const s of records)for(const m of s.members){const own=byPerson.get(m.id)||[];own.push(s);byPerson.set(m.id,own);}return orderWorkRows(people,p=>byPerson.get(p.id)||[],from,to,day);}
+export function dateColumnClass(date,today){const weekday=new Date(date+'T12:00Z').getUTCDay();return [date===today?'today':'',weekday===1?'week-start':'',[0,6].includes(weekday)?'weekend':'',date.endsWith('-01')?'month-start':''].filter(Boolean).join(' ');}
